@@ -6,6 +6,8 @@ pub struct Vec3 {
   e: [f64; 3], // Um array de 3 elementos do tipo f64 (números de ponto flutuante de 64 bits)
 }
 
+pub type Point3 = Vec3; // Define um tipo Point3 como um vetor 3D
+
 impl Vec3 {
   // Função para criar um novo vetor 3D
   pub fn new(e0: f64, e1: f64, e2: f64) -> Self {
