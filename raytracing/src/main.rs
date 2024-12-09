@@ -14,10 +14,7 @@ fn main() -> io::Result<()> {
   let image_width: u32 = 400;
 
   //Calcula a altura da imagem e garante que seja ao menos 1
-  let mut image_height: u32 = (image_width as f64 / aspect_ratio) as u32;
-  if image_height < 1 {
-    image_height = 1;
-  }
+  let image_height = ((image_width as f64 / aspect_ratio) as u32).max(1);
 
   //Camera
 
