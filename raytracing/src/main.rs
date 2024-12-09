@@ -3,7 +3,7 @@ pub mod color;
 pub mod ray;
 use std::fs::File;
 use std::io::{self, Write};
-use std::ops::Sub;
+use std::ops::{Mul, Sub};
 use indicatif::{ProgressBar, ProgressStyle};
 use ray::Ray;
 use vecry::{dot, unit_vector, Point3, Vec3};
@@ -71,21 +71,33 @@ fn main() -> io::Result<()> {
 }
 
 fn ray_color(r: &ray::Ray) -> vecry::Vec3 {
-  if hit_sphere(&Point3::new(0.0, 0.0, -1.0), 0.5, r){
-    return Vec3::new(1.0, 0.0, 0.0);
+  // Verifica se o raio atinge a esfera
+  let t: f64 = hit_sphere(&Point3::new(0.0, 0.0, -1.0), 0.5, r);
+  if t > 0.0 {
+      // Calcula a normal no ponto de interseção
+      let normal: Vec3 = unit_vector(&(r.at(t).sub(Point3::new(0.0, 0.0, -1.0))));
+      // Retorna a cor baseada na normal
+      return Vec3::new(normal.x() + 1.0, normal.y() + 1.0, normal.z() + 1.0) * 0.5;
   }
+  // Calcula a direção unitária do raio
   let unit_direction: Vec3 = unit_vector(r.direction());
-  let deta = 0.5 * (unit_direction.y() + 1.0);
-  
-  Vec3::new(1.0, 1.0, 1.0)*(1.0-deta) + vecry::Vec3::new(0.5, 0.7, 1.0) * deta
-
+  // Interpola entre branco e azul com base na direção y
+  let t = 0.5 * (unit_direction.y() + 1.0);
+  Vec3::new(1.0, 1.0, 1.0) * (1.0 - t) + Vec3::new(0.5, 0.7, 1.0) * t
 }
 
-fn hit_sphere(center: &Vec3, radius: f64, r: &Ray) -> bool{
+fn hit_sphere(center: &Vec3, radius: f64, r: &Ray) -> f64 {
+  // Vetor do raio de origem ao centro da esfera
   let oc: Vec3 = r.origin().sub(*center);
+  // Coeficientes da equação quadrática
   let a: f64 = vecry::dot(r.direction(), r.direction());
-  let b: f64 = -2.0 * dot(r.direction(), &oc);
-  let c: f64 = dot(&oc, &oc) - radius*radius;
-  let discriminant: f64 = b*b - 4.0*a*c;
-  discriminant >= 0.0
+  let b: f64 = 2.0 * vecry::dot(&oc, r.direction());
+  let c: f64 = vecry::dot(&oc, &oc) - radius * radius;
+  // Discriminante da equação quadrática
+  let discriminant: f64 = b * b - 4.0 * a * c;
+  if discriminant < 0.0 {
+      -1.0 // Não há interseção
+  } else {
+      (-b - discriminant.sqrt()) / (2.0 * a) // Menor raiz
+  }
 }
