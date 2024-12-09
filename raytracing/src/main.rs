@@ -36,8 +36,6 @@ fn main() -> io::Result<()> {
   let pixelhundred_loc = viewport_upper_left + (pixel_delta_u + pixel_delta_v) * 0.5;
 
   // Render
-    let image_width = 800;
-    let image_height = 600;
     let total_pixels = (image_height * image_width) as u64;
 
     // Cria um arquivo chamado "image.ppm"
@@ -87,17 +85,21 @@ fn ray_color(r: &ray::Ray) -> vecry::Vec3 {
 }
 
 fn hit_sphere(center: &Vec3, radius: f64, r: &Ray) -> f64 {
+
   // Vetor do raio de origem ao centro da esfera
   let oc: Vec3 = r.origin().sub(*center);
+
   // Coeficientes da equação quadrática
-  let a: f64 = vecry::dot(r.direction(), r.direction());
-  let b: f64 = 2.0 * vecry::dot(&oc, r.direction());
-  let c: f64 = vecry::dot(&oc, &oc) - radius * radius;
+  let a: f64 = r.direction().length_squared();
+  let h: f64 = vecry::dot(r.direction(), &oc);
+  let c: f64 = &oc.length_squared() - radius * radius;
+
   // Discriminante da equação quadrática
-  let discriminant: f64 = b * b - 4.0 * a * c;
+  let discriminant: f64 = h*h - a*c;
+
   if discriminant < 0.0 {
       -1.0 // Não há interseção
   } else {
-      (-b - discriminant.sqrt()) / (2.0 * a) // Menor raiz
+      (-h - discriminant.sqrt()) / (a) // Menor raiz
   }
 }
