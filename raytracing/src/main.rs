@@ -3,12 +3,22 @@ pub mod color;
 pub mod ray;
 pub mod hittable;
 pub mod sphere;
+pub mod hittable_list;
+pub mod rtweekend;
+
+use std::ops::Sub;
 use std::fs::File;
 use std::io::{self, Write};
-use std::ops::{Mul, Sub};
+use hittable::HitRecord;
 use indicatif::{ProgressBar, ProgressStyle};
 use ray::Ray;
-use vecry::{dot, unit_vector, Point3, Vec3};
+use vecry::{unit_vector, Vec3};
+use rtweekend::INFINITYCONST;
+use crate::color::Color;
+use std::sync::Arc;
+use crate::hittable_list::HittableList;
+use crate::sphere::Sphere;
+use crate::vecry::Point3;
 
 fn main() -> io::Result<()> {
   //Imagem
@@ -18,6 +28,13 @@ fn main() -> io::Result<()> {
   //Calcula a altura da imagem e garante que seja ao menos 1
   let image_height = ((image_width as f64 / aspect_ratio) as u32).max(1);
 
+  //World
+
+  let mut world = HittableList::new();
+
+    // Adiciona uma esfera à lista
+  world.add(Arc::new(Sphere::new(Point3::new(0.0, 0.0, -1.0), 0.5)));
+  world.add(Arc::new(Sphere::new(Point3::new(0.0, -100.5, -1.0), 100.0)));
   //Camera
 
   let focal_length = 1.0;
@@ -57,7 +74,7 @@ fn main() -> io::Result<()> {
         for i in 0..image_width {
           let pixel_center: Vec3 = pixelhundred_loc + (pixel_delta_u * i as f64) + (pixel_delta_v * j as f64);
           let ray_direction: Vec3 = pixel_center - camera_center;
-          let camera_ray: Ray = ray::Ray::new(camera_center, ray_direction);
+          let camera_ray: Ray = ray::Ray::new(camera_center, ray_direction); // = r na doc
 
           let pixel_color: Vec3 = ray_color(&camera_ray);
 
@@ -69,6 +86,21 @@ fn main() -> io::Result<()> {
     println!("Arquivo de imagem gerado: image.ppm");
     Ok(())
 }
+
+/*fn ray_color(r: &ray::Ray, world: &dyn hittable::Hittable) -> vecry::Vec3 {
+  let mut rec = hittable::HitRecord::new(Vec3::new(0.0, 0.0, -1.0), Vec3::new(0.0, 0.0, -1.0), 0.5, false);
+
+  if world.hit(r, 0.0, INFINITYCONST, &mut rec){
+      // Retorna a cor baseada na normal
+      return (rec.normal + Color::new(rec.normal.x() + 1.0, rec.normal.y() + 1.0, rec.normal.z() + 1.0)) * 0.5;
+  }
+  // Calcula a direção unitária do raio
+  let unit_direction: Vec3 = unit_vector(r.direction());
+  // Interpola entre branco e azul com base na direção y
+  let t = 0.5 * (unit_direction.y() + 1.0);
+  Vec3::new(1.0, 1.0, 1.0) * (1.0 - t) + Vec3::new(0.5, 0.7, 1.0) * t
+}*/
+
 
 fn ray_color(r: &ray::Ray) -> vecry::Vec3 {
   // Verifica se o raio atinge a esfera

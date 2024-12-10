@@ -1,4 +1,4 @@
-use std::ops::{Add, Div, Mul, Sub};
+use std::ops::{Add, Div, Mul, Sub, Neg};
 
 // Define uma estrutura chamada Vec3 que representa um vetor 3D
 #[derive(Debug, Copy, Clone)]
@@ -86,6 +86,20 @@ impl Div<f64> for Vec3 {
   // Implementação da operação de divisão por um escalar
   fn div(self, t: f64) -> Self::Output {
     self * (1.0 / t) // Multiplicação pelo inverso do escalar
+  }
+}
+
+// Implementação do operador unário `Neg` para a estrutura Vec3
+impl Neg for Vec3 {
+  type Output = Self; // Define o tipo de retorno da operação de negação como Vec3
+
+  // Implementação da operação de negação
+  fn neg(self) -> Self::Output {
+      Vec3::new(
+          -self.e[0], // Inverte a coordenada x
+          -self.e[1], // Inverte a coordenada y
+          -self.e[2], // Inverte a coordenada z
+      )
   }
 }
 

@@ -1,5 +1,8 @@
 use crate::vecry;
 use std::io::Write;
+use crate::vecry::Vec3;
+
+pub type Color = Vec3;
 
 pub fn write_color(file: &mut std::fs::File, pixel_color: &vecry::Vec3) {
   let red = pixel_color.x();

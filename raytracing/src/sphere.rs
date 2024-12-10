@@ -1,38 +1,44 @@
 use std::ops::Sub;
-use crate::vecry::{dot};
 
 use crate::ray::Ray;
-use crate::Vec3;
-use crate::Point3;
+use crate::vecry::{Point3, dot};
 use crate::hittable::{HitRecord, Hittable};
 
 pub struct Sphere {
-  center: Point3,
-  radius: f64,
+    center: Point3,
+    radius: f64,
 }
 
-impl Hittable for Sphere {
-  fn hit(&self,r: &Ray,ray_tmin: f64,ray_tmax: f64,rec: &mut HitRecord,) -> bool {
-    let oc: Vec3 = r.origin().sub(self.center);
+impl Sphere {
+    pub fn new(center: Point3, radius: f64) -> Self {
+        Self {
+            center,
+            radius: radius.max(0.0),
+        }
+    }
+}
 
-    let a: f64 = r.direction().length_squared();
-    let h: f64 = dot(r.direction(), &oc);
-    let c: f64 = oc.length_squared() - self.radius * self.radius;
+impl Hittable for Sphere{
+  fn hit(&self, r: &Ray, ray_tmin: f64, ray_tmax: f64, rec: &mut HitRecord) -> bool {
+    let oc = r.origin().sub(self.center);
+    let a = r.direction().length_squared();
+    let h = dot(r.direction(), &oc);
+    let c = oc.length_squared() - self.radius * self.radius;
 
     let discriminant = h * h - a * c;
     if discriminant < 0.0 {
-        false; // Não há interseção
+        return false; // No intersection
     }
 
     let sqrtd = discriminant.sqrt();
 
-    // Encontra a raiz mais próxima dentro do intervalo aceitável
+    // Find the nearest root that lies within the acceptable range
     let mut root = (h - sqrtd) / a;
-    if root < ray_tmin || root > ray_tmax {
-      root = (h + sqrtd) / a;
-      if root < ray_tmin || root > ray_tmax {
-        return false;
-      }
+    if root <= ray_tmin || ray_tmax <= root {
+        root = (h + sqrtd) / a;
+        if root <= ray_tmin || ray_tmax <= root {
+            return false; // No valid root within range
+        }
     }
 
     rec.time = root;
@@ -40,5 +46,5 @@ impl Hittable for Sphere {
     rec.normal = (rec.p - self.center) / self.radius;
 
     true
-  }
+}
 }
