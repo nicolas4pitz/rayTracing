@@ -1,6 +1,8 @@
 pub mod vecry;
 pub mod color;
 pub mod ray;
+pub mod hittable;
+pub mod sphere;
 use std::fs::File;
 use std::io::{self, Write};
 use std::ops::{Mul, Sub};
