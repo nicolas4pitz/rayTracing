@@ -32,9 +32,11 @@ fn main() -> io::Result<()> {
 
   let mut world = HittableList::new();
 
-    // Adiciona uma esfera à lista
-  world.add(Arc::new(Sphere::new(Point3::new(0.0, 0.0, -1.0), 0.5)));
-  world.add(Arc::new(Sphere::new(Point3::new(0.0, -100.5, -1.0), 100.0)));
+  // Adiciona uma esfera à lista
+
+  world.add(Arc::new(Sphere::new(Point3::new(0.0, 100.5, -1.0), 100.0)));
+  world.add(Arc::new(Sphere::new(Point3::new(0.0, 0.0, 1.0), 0.5)));
+
   //Camera
 
   let focal_length = 1.0;
@@ -55,40 +57,44 @@ fn main() -> io::Result<()> {
   let pixelhundred_loc = viewport_upper_left + (pixel_delta_u + pixel_delta_v) * 0.5;
 
   // Render
-    let total_pixels = (image_height * image_width) as u64;
+  let total_pixels = (image_height * image_width) as u64;
 
-    // Cria um arquivo chamado "image.ppm"
-    let mut file = File::create("image.ppm")?;
+  // Cria um arquivo chamado "image.ppm"
+  let mut file = File::create("image.ppm")?;
 
-    // Escreve o cabeçalho do arquivo PPM no arquivo
-    writeln!(file, "P3")?;
-    writeln!(file, "{} {}", image_width, image_height)?;
-    writeln!(file, "255")?;
+  // Escreve o cabeçalho do arquivo PPM no arquivo
+  writeln!(file, "P3")?;
+  writeln!(file, "{} {}", image_width, image_height)?;
+  writeln!(file, "255")?;
 
-    let progressbar = ProgressBar::new(total_pixels);
-    progressbar.set_style(ProgressStyle::default_bar().template("[{elapsed}] [{wide_bar:.green}] {percent}% {msg}").unwrap(),);
+  let progressbar = ProgressBar::new(total_pixels);
+  progressbar.set_style(ProgressStyle::default_bar().template("[{elapsed}] [{wide_bar:.green}] {percent}% {msg}").unwrap());
 
-    // Escreve os valores RGB dos pixels no arquivo
-    for j in 0..image_height {
-      
-        for i in 0..image_width {
-          let pixel_center: Vec3 = pixelhundred_loc + (pixel_delta_u * i as f64) + (pixel_delta_v * j as f64);
-          let ray_direction: Vec3 = pixel_center - camera_center;
-          let camera_ray: Ray = ray::Ray::new(camera_center, ray_direction); // = r na doc
+  // Escreve os valores RGB dos pixels no arquivo
+  for j in 0..image_height {
+    
+      for i in 0..image_width {
+        let pixel_center: Vec3 = pixelhundred_loc + (pixel_delta_u * i as f64) + (pixel_delta_v * j as f64);
+        let ray_direction: Vec3 = pixel_center - camera_center;
+        let camera_ray: Ray = ray::Ray::new(camera_center, ray_direction); // = r na doc
 
-          let pixel_color: Vec3 = ray_color(&camera_ray);
+        let pixel_color: Vec3 = ray_color(&camera_ray, &world);
 
-          color::write_color(&mut file, &pixel_color);
-          progressbar.inc(1);
-        }
-    }
+        color::write_color(&mut file, &pixel_color);
+        progressbar.inc(1);
+      }
+  }
 
-    println!("Arquivo de imagem gerado: image.ppm");
-    Ok(())
+  println!("Arquivo de imagem gerado: image.ppm");
+  Ok(())
 }
 
-/*fn ray_color(r: &ray::Ray, world: &dyn hittable::Hittable) -> vecry::Vec3 {
-  let mut rec = hittable::HitRecord::new(Vec3::new(0.0, 0.0, -1.0), Vec3::new(0.0, 0.0, -1.0), 0.5, false);
+fn ray_color(r: &ray::Ray, world: &dyn hittable::Hittable) -> vecry::Vec3 {
+  let normal: Vec3 = Vec3::new(0.0, 0.0, -1.0);
+
+  let mut rec = hittable::HitRecord::new(Vec3::new(0.0, 0.0, 1.0), normal, 0.5, true);
+
+  rec.set_face_normal(r, normal);
 
   if world.hit(r, 0.0, INFINITYCONST, &mut rec){
       // Retorna a cor baseada na normal
@@ -99,10 +105,10 @@ fn main() -> io::Result<()> {
   // Interpola entre branco e azul com base na direção y
   let t = 0.5 * (unit_direction.y() + 1.0);
   Vec3::new(1.0, 1.0, 1.0) * (1.0 - t) + Vec3::new(0.5, 0.7, 1.0) * t
-}*/
+}
 
 
-fn ray_color(r: &ray::Ray) -> vecry::Vec3 {
+/*fn ray_color(r: &ray::Ray) -> vecry::Vec3 {
   // Verifica se o raio atinge a esfera
   let t: f64 = hit_sphere(&Point3::new(0.0, 0.0, -1.0), 0.5, r);
   if t > 0.0 {
@@ -116,7 +122,7 @@ fn ray_color(r: &ray::Ray) -> vecry::Vec3 {
   // Interpola entre branco e azul com base na direção y
   let t = 0.5 * (unit_direction.y() + 1.0);
   Vec3::new(1.0, 1.0, 1.0) * (1.0 - t) + Vec3::new(0.5, 0.7, 1.0) * t
-}
+}*/
 
 fn hit_sphere(center: &Vec3, radius: f64, r: &Ray) -> f64 {
 
