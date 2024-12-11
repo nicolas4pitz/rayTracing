@@ -5,12 +5,14 @@ pub mod hittable;
 pub mod sphere;
 pub mod hittable_list;
 pub mod rtweekend;
+pub mod interval;
 
 use std::ops::Sub;
 use std::fs::File;
 use std::io::{self, Write};
 use hittable::HitRecord;
 use indicatif::{ProgressBar, ProgressStyle};
+use interval::Interval;
 use ray::Ray;
 use vecry::{unit_vector, Vec3};
 use rtweekend::INFINITYCONST;
@@ -34,8 +36,9 @@ fn main() -> io::Result<()> {
 
   // Adiciona uma esfera à lista
 
-  world.add(Arc::new(Sphere::new(Point3::new(0.0, 100.5, -1.0), 100.0)));
   world.add(Arc::new(Sphere::new(Point3::new(0.0, 0.0, 1.0), 0.5)));
+  world.add(Arc::new(Sphere::new(Point3::new(0.0, -100.5, -1.0), 100.0)));
+  
 
   //Camera
 
@@ -46,7 +49,7 @@ fn main() -> io::Result<()> {
 
   //Calcula o vetor por meio da horizontal e abaixa o ponto de visao vertical
   let viewport_u = Vec3::new(viewport_width, 0.0, 0.0);
-  let viewport_v = Vec3::new(0.0, -viewport_height, 0.0);
+  let viewport_v = Vec3::new(0.0, viewport_height, 0.0);
 
   // Calculate the horizontal and vertical delta vectors from pixel to pixel.
   let pixel_delta_u: Vec3 = viewport_u / image_width as f64;
@@ -90,15 +93,13 @@ fn main() -> io::Result<()> {
 }
 
 fn ray_color(r: &ray::Ray, world: &dyn hittable::Hittable) -> vecry::Vec3 {
-  let normal: Vec3 = Vec3::new(0.0, 0.0, -1.0);
+  let normal: Vec3 = Vec3::new(0.0, 0.0, 0.0);
 
-  let mut rec = hittable::HitRecord::new(Vec3::new(0.0, 0.0, 1.0), normal, 0.5, true);
+  let mut rec = hittable::HitRecord::new(Vec3::new(0.0, 0.0, 0.0), normal, 0.0, false);
 
-  rec.set_face_normal(r, normal);
-
-  if world.hit(r, 0.0, INFINITYCONST, &mut rec){
+  if world.hit(r, Interval::new(0.0, INFINITYCONST), &mut rec){
       // Retorna a cor baseada na normal
-      return (rec.normal + Color::new(rec.normal.x() + 1.0, rec.normal.y() + 1.0, rec.normal.z() + 1.0)) * 0.5;
+      return (rec.normal + Color::new(1.0, 1.0, 1.0)) * 0.5;
   }
   // Calcula a direção unitária do raio
   let unit_direction: Vec3 = unit_vector(r.direction());
@@ -124,7 +125,7 @@ fn ray_color(r: &ray::Ray, world: &dyn hittable::Hittable) -> vecry::Vec3 {
   Vec3::new(1.0, 1.0, 1.0) * (1.0 - t) + Vec3::new(0.5, 0.7, 1.0) * t
 }*/
 
-fn hit_sphere(center: &Vec3, radius: f64, r: &Ray) -> f64 {
+/*fn hit_sphere(center: &Vec3, radius: f64, r: &Ray) -> f64 {
 
   // Vetor do raio de origem ao centro da esfera
   let oc: Vec3 = r.origin().sub(*center);
@@ -142,4 +143,4 @@ fn hit_sphere(center: &Vec3, radius: f64, r: &Ray) -> f64 {
   } else {
       (-h - discriminant.sqrt()) / (a) // Menor raiz
   }
-}
+}*/

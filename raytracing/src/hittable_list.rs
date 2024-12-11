@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
 use crate::hittable::{HitRecord, Hittable};
-use crate::ray::Ray;
+use crate::interval::Interval;
+use crate::ray::{self, Ray};
 use crate::vecry::Vec3;
 
 pub struct HittableList {
@@ -33,13 +34,13 @@ impl HittableList {
 }
 
 impl Hittable for HittableList {
-  fn hit(&self, r: &Ray, ray_tmin: f64, ray_tmax: f64, rec: &mut HitRecord) -> bool {
+  fn hit(&self, r: &Ray, ray_t: Interval, rec: &mut HitRecord) -> bool {
     let mut temp_rec = HitRecord::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0), 0.0, false);
     let mut hit_anything = false;
-    let mut closest_so_far = ray_tmax;
+    let mut closest_so_far = ray_t.get_max();
 
     for object in &self.objects {
-        if object.hit(r, ray_tmin, closest_so_far, &mut temp_rec) {
+        if object.hit(r, Interval::new(ray_t.get_min(), closest_so_far),&mut temp_rec) {
             hit_anything = true;
             closest_so_far = temp_rec.time;
             *rec = temp_rec.clone();
