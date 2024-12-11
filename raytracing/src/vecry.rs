@@ -1,4 +1,6 @@
-use std::ops::{Add, Div, Mul, Sub, Neg, AddAssign};
+use std::ops::{Add, AddAssign, Div, Mul, Neg, Sub};
+
+use crate::rtweekend::{random_double, random_double_range};
 
 // Define uma estrutura chamada Vec3 que representa um vetor 3D
 #[derive(Debug, Copy, Clone)]
@@ -37,6 +39,14 @@ impl Vec3 {
   // Função para calcular o comprimento ao quadrado do vetor
   pub fn length_squared(&self) -> f64 {
     self.e[0] * self.e[0] + self.e[1] * self.e[1] + self.e[2] * self.e[2] // Soma dos quadrados dos componentes
+  }
+
+  pub fn random() -> Vec3{
+    Vec3::new(random_double(), random_double(), random_double())
+  }
+
+  pub fn random_range(min: f64, max: f64) -> Vec3 {
+    Vec3::new(random_double_range(min, max), random_double_range(min, max), random_double_range(min, max))
   }
 }
 
@@ -129,4 +139,25 @@ pub fn cross(u: &Vec3, v: &Vec3) -> Vec3 {
 // Função para normalizar um vetor (torná-lo unitário)
 pub fn unit_vector(v: &Vec3) -> Vec3 {
   *v / v.length() // Divisão do vetor pelo seu comprimento
+}
+
+pub fn random_unit_vector() -> Vec3{
+  
+  loop {
+    let p = Vec3::random_range(-1.0, 1.0);
+    let lensq = p.length_squared();
+    if 1e-160 < lensq && lensq <= 1.0 {
+        return p / lensq.sqrt();
+    }
+  }
+}
+
+pub fn random_on_hemisphere(normal: Vec3) -> Vec3{
+  let on_unit_sphere = random_unit_vector();
+
+  if dot(&on_unit_sphere, &normal) > 0.0 {
+    on_unit_sphere
+  } else {
+    -on_unit_sphere
+  }
 }

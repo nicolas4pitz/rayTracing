@@ -1,6 +1,6 @@
 use std::{fs::File, io, ops::Mul};
 
-use crate::{color::{self, Color}, hittable::{self, Hittable}, interval::Interval, ray::{self, Ray}, rtweekend::{random_double, INFINITYCONST}, vecry::{self, unit_vector, Point3, Vec3}};
+use crate::{color::{self, Color}, hittable::{self, Hittable}, interval::Interval, ray::{self, Ray}, rtweekend::{random_double, INFINITYCONST}, vecry::{self, random_on_hemisphere, unit_vector, Point3, Vec3}};
 use std::io::Write;
 use indicatif::{ProgressBar, ProgressStyle};
 
@@ -65,7 +65,7 @@ impl Camera {
   for j in 0..self.image_height {
     
       for i in 0..self.image_width {
-        let mut pixel_color = Color::new(0.0, 0.0, 0.0);
+        let mut pixel_color: Color = Color::new(0.0, 0.0, 0.0);
         for _ in 0..self.samples_per_pixel {
           let ray: Ray = self.get_ray(i, j);
           pixel_color += Camera::ray_color(&ray, world);
@@ -94,14 +94,15 @@ impl Camera {
     Vec3::new(random_double() - 0.5, random_double() - 0.5, 0.0)
   }
 
-  fn ray_color(r: &ray::Ray, world: &dyn hittable::Hittable) -> vecry::Vec3 {
+  fn ray_color(r: &ray::Ray, world: &dyn hittable::Hittable) -> Color {
     let normal: Vec3 = Vec3::new(0.0, 0.0, 0.0);
 
     let mut rec = hittable::HitRecord::new(Vec3::new(0.0, 0.0, 0.0), normal, 0.0, false);
 
     if world.hit(r, Interval::new(0.0, INFINITYCONST), &mut rec){
         // Retorna a cor baseada na normal
-        return (rec.normal + Color::new(1.0, 1.0, 1.0)) * 0.5;
+        let direction: Vec3 = random_on_hemisphere(rec.normal);
+        return Self::ray_color(&Ray::new(rec.p, direction), world) * 0.5;
     }
     // Calcula a direção unitária do raio
     let unit_direction: Vec3 = unit_vector(r.direction());
