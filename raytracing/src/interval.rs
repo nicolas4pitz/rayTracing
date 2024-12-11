@@ -23,6 +23,18 @@ impl Interval {
     self.min < other && self.max > other 
   }
 
+  pub fn clamp(&self, x: f64) -> f64 {
+    if x < self.min {
+      return self.min;
+    }
+
+    if (x > self.max) {
+      return self.max;
+    }
+
+    x
+  }
+
   pub fn get_max(&self) -> f64 {
     self.max
   }

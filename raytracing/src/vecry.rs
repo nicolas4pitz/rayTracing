@@ -1,4 +1,4 @@
-use std::ops::{Add, Div, Mul, Sub, Neg};
+use std::ops::{Add, Div, Mul, Sub, Neg, AddAssign};
 
 // Define uma estrutura chamada Vec3 que representa um vetor 3D
 #[derive(Debug, Copy, Clone)]
@@ -101,6 +101,15 @@ impl Neg for Vec3 {
           -self.e[2], // Inverte a coordenada z
       )
   }
+}
+
+impl AddAssign for Vec3 {
+  fn add_assign(&mut self, other: Self) {
+    self.e[0] += other.e[0];
+    self.e[1] += other.e[1];
+    self.e[2] += other.e[2];
+  }
+
 }
 
 // Função para calcular o produto escalar (dot product) entre dois vetores
