@@ -37,7 +37,7 @@ fn main(){
 
   //Camera
 
-  let camera = camera::Camera::new(16.0/9.0, 400, 100);
+  let camera = camera::Camera::new(16.0/9.0, 400, 100, 50);
 
   camera.render(&world).unwrap();
 }

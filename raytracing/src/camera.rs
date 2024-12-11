@@ -10,6 +10,7 @@ pub struct Camera {
   pub aspect_ratio: f64,
   pub image_width: u32,
   pub samples_per_pixel: u32,
+  pub max_depth: u32,
   pixel_sample_scale: f64,
   image_height: u32,
   center: Point3,
@@ -19,7 +20,7 @@ pub struct Camera {
 }
 
 impl Camera {
-  pub fn new(aspect_ratio: f64, image_width: u32, samples_per_pixel: u32) -> Self {
+  pub fn new(aspect_ratio: f64, image_width: u32, samples_per_pixel: u32, max_depth: u32) -> Self {
     let image_height = ((image_width as f64 / aspect_ratio) as u32).max(1);
     let center = Point3::new(0.0, 0.0, 0.0);
     let focal_length = 1.0;
@@ -31,13 +32,13 @@ impl Camera {
     let pixel_delta_v: Vec3 = viewport_v / image_height as f64;
     let viewport_upper_left = center - Vec3::new(0.0, 0.0, focal_length) - viewport_u / 2.0 - viewport_v / 2.0;
     let pixelhundred_loc = viewport_upper_left + (pixel_delta_u + pixel_delta_v) * 0.5;
-    let samples_per_pixel = 10;
     let pixel_sample_scale = 1.0 / samples_per_pixel as f64;
     Self {
       aspect_ratio,
       image_width,
       samples_per_pixel,
       pixel_sample_scale,
+      max_depth,
       image_height,
       center,
       pixelhundred_loc,
@@ -68,7 +69,7 @@ impl Camera {
         let mut pixel_color: Color = Color::new(0.0, 0.0, 0.0);
         for _ in 0..self.samples_per_pixel {
           let ray: Ray = self.get_ray(i, j);
-          pixel_color += Camera::ray_color(&ray, world);
+          pixel_color += Camera::ray_color(&ray, self.max_depth, world);
         }
         color::write_color(&mut file, &pixel_color.mul(self.pixel_sample_scale));
         progressbar.inc(1);
@@ -94,19 +95,24 @@ impl Camera {
     Vec3::new(random_double() - 0.5, random_double() - 0.5, 0.0)
   }
 
-  fn ray_color(r: &ray::Ray, world: &dyn hittable::Hittable) -> Color {
+  fn ray_color(r: &ray::Ray, depth: u32, world: &dyn hittable::Hittable) -> Color {
+
+    if depth <= 0 {
+      return Color::new(0.0, 0.0, 0.0);
+    }
+
     let normal: Vec3 = Vec3::new(0.0, 0.0, 0.0);
 
     let mut rec = hittable::HitRecord::new(Vec3::new(0.0, 0.0, 0.0), normal, 0.0, false);
 
-    if world.hit(r, Interval::new(0.0, INFINITYCONST), &mut rec){
-        // Retorna a cor baseada na normal
+    if world.hit(r, Interval::new(0.001, INFINITYCONST), &mut rec){
+        
         let direction: Vec3 = random_on_hemisphere(rec.normal);
-        return Self::ray_color(&Ray::new(rec.p, direction), world) * 0.5;
+        return Self::ray_color(&Ray::new(rec.p, direction), depth-1, world) * 0.5;
     }
-    // Calcula a direção unitária do raio
+    
     let unit_direction: Vec3 = unit_vector(r.direction());
-    // Interpola entre branco e azul com base na direção y
+    
     let t = 0.5 * (unit_direction.y() + 1.0);
     Vec3::new(1.0, 1.0, 1.0) * (1.0 - t) + Vec3::new(0.5, 0.7, 1.0) * t
   }
