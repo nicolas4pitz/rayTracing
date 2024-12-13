@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::hittable::{HitRecord, Hittable};
 use crate::interval::Interval;
-use crate::ray::{self, Ray};
+use crate::ray::Ray;
 use crate::vecry::Vec3;
 
 pub struct HittableList {

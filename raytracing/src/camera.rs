@@ -1,6 +1,6 @@
 use std::{fs::File, io, ops::Mul};
 
-use crate::{color::{self, Color}, hittable::{self, Hittable}, interval::Interval, ray::{self, Ray}, rtweekend::{random_double, INFINITYCONST}, vecry::{self, random_on_hemisphere, unit_vector, Point3, Vec3}};
+use crate::{color::{self, Color}, hittable::{self}, interval::Interval, ray::{self, Ray}, rtweekend::{random_double, INFINITYCONST}, vecry::{random_on_hemisphere, unit_vector, Point3, Vec3}};
 use std::io::Write;
 use indicatif::{ProgressBar, ProgressStyle};
 
@@ -31,7 +31,6 @@ impl Camera {
     let pixel_delta_v: Vec3 = viewport_v / image_height as f64;
     let viewport_upper_left = center - Vec3::new(0.0, 0.0, focal_length) - viewport_u / 2.0 - viewport_v / 2.0;
     let pixelhundred_loc = viewport_upper_left + (pixel_delta_u + pixel_delta_v) * 0.5;
-    let samples_per_pixel = 10;
     let pixel_sample_scale = 1.0 / samples_per_pixel as f64;
     Self {
       aspect_ratio,
@@ -102,7 +101,7 @@ impl Camera {
     if world.hit(r, Interval::new(0.0, INFINITYCONST), &mut rec){
         // Retorna a cor baseada na normal
         let direction: Vec3 = random_on_hemisphere(rec.normal);
-        return Self::ray_color(&Ray::new(rec.p, direction), world) * 0.5;
+        return Self::ray_color(&Ray::new(rec.p, direction), world) * 0.9;
     }
     // Calcula a direção unitária do raio
     let unit_direction: Vec3 = unit_vector(r.direction());

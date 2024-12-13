@@ -8,15 +8,6 @@ pub mod rtweekend;
 pub mod interval;
 pub mod camera;
 
-use std::ops::Sub;
-use std::fs::File;
-use std::io::{self, Write};
-use hittable::HitRecord;
-use interval::Interval;
-use ray::Ray;
-use vecry::{unit_vector, Vec3};
-use rtweekend::INFINITYCONST;
-use crate::color::Color;
 use std::sync::Arc;
 use crate::hittable_list::HittableList;
 use crate::sphere::Sphere;
@@ -37,7 +28,7 @@ fn main(){
 
   //Camera
 
-  let camera = camera::Camera::new(16.0/9.0, 400, 100);
+  let camera:Camera = Camera::new(16.0/9.0, 400, 100);
 
   camera.render(&world).unwrap();
 }
