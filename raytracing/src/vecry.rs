@@ -41,6 +41,11 @@ impl Vec3 {
     self.e[0] * self.e[0] + self.e[1] * self.e[1] + self.e[2] * self.e[2] // Soma dos quadrados dos componentes
   }
 
+  pub fn near_zero(&self) -> bool {
+    let s = 1e-8;
+    (self.e[0].abs() < s) && (self.e[1].abs() < s) && (self.e[2].abs() < s)
+}
+
   pub fn random() -> Vec3{
     Vec3::new(random_double(), random_double(), random_double())
   }
@@ -141,23 +146,45 @@ pub fn unit_vector(v: &Vec3) -> Vec3 {
   *v / v.length() // Divisão do vetor pelo seu comprimento
 }
 
-pub fn random_unit_vector() -> Vec3{
-  
+pub fn random_unit_vector() -> Vec3 {
   loop {
-    let p = Vec3::random_range(-1.0, 1.0);
-    let lensq = p.length_squared();
-    if 1e-160 < lensq && lensq <= 1.0 {
-        return p / lensq.sqrt();
-    }
+      let p = Vec3::random_range(-1.0, 1.0);
+      let lensq = p.length_squared();
+      if 1e-160 < lensq && lensq <= 1.0 {
+          return p / lensq.sqrt();
+      }
   }
 }
 
-pub fn random_on_hemisphere(normal: Vec3) -> Vec3{
+pub fn random_in_unit_disk() -> Vec3 {
+  loop {
+      let p = Vec3::new(random_double_range(-1.0, 1.0), random_double_range(-1.0, 1.0), 0.0);
+      if p.length_squared() < 1.0 {
+          return p;
+      }
+  }
+}
+
+// Função para gerar um vetor aleatório na hemisfério definido por um vetor normal
+pub fn random_on_hemisphere(normal: Vec3) -> Vec3 {
   let on_unit_sphere = random_unit_vector();
-
   if dot(&on_unit_sphere, &normal) > 0.0 {
-    on_unit_sphere
+      on_unit_sphere
   } else {
-    -on_unit_sphere
+      -on_unit_sphere
   }
 }
+
+// Função para refletir um vetor em relação a um vetor normal
+pub fn reflect(v: Vec3, n: Vec3) -> Vec3 {
+  v - n * dot(&v, &n) * 2.0
+}
+
+// Função para refratar um vetor em relação a um vetor normal e um índice de refração
+pub fn refract(uv: Vec3, n: Vec3, etai_over_etat: f64) -> Vec3 {
+  let cos_theta = dot(&-uv, &n).min(1.0);
+  let r_out_perp = (uv + n * cos_theta) * etai_over_etat;
+  let r_out_parallel =  n * -((r_out_perp.length_squared() - 1.0 ).abs().sqrt());
+  r_out_perp + r_out_parallel
+}
+
