@@ -1,24 +1,16 @@
-use crate::vecry::{Point3, Vec3};
+use nalgebra::Vector3;
 
 pub struct Ray {
-  orig: Point3,
-  dir: Vec3,
+    a: Vector3<f32>,
+    b: Vector3<f32>
 }
 
 impl Ray {
-  pub fn new(origin: Point3, direction: Vec3) -> Self {
-    Self { orig: origin, dir: direction }
-  }
+    pub fn new (a: Vector3<f32>, b: Vector3<f32>) -> Self {
+        Ray { a, b }
+    }
 
-  pub fn origin(&self) -> &Point3 {
-    &self.orig
-  }
-
-  pub fn direction(&self) -> &Vec3 {
-    &self.dir
-  }
-
-  pub fn at(&self, t: f64) -> Point3 {
-    self.orig + self.dir * t // P(t) = A + tb
-  }
+    pub fn origin(&self) -> Vector3<f32> { self.a }
+    pub fn direction(&self) -> Vector3<f32> { self.b }
+    pub fn point_at_parameter(&self, t: f32) -> Vector3<f32> { self.a + t * self.b }
 }

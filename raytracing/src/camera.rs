@@ -1,120 +1,50 @@
-use std::{fs::File, io, ops::Mul};
+use std::f32;
+use nalgebra::Vector3;
+use rand::Rng;
+use crate::ray::Ray;
 
-use crate::{color::{self, Color}, hittable::{self, Hittable}, interval::Interval, ray::{self, Ray}, rtweekend::{random_double, INFINITYCONST}, vecry::{self, random_on_hemisphere, unit_vector, Point3, Vec3}};
-use std::io::Write;
-use indicatif::{ProgressBar, ProgressStyle};
-
-
+fn random_in_unit_disk() -> Vector3<f32> {
+    let mut rng: rand::prelude::ThreadRng = rand::thread_rng();
+    let unit: nalgebra::Matrix<f32, nalgebra::Const<3>, nalgebra::Const<1>, nalgebra::ArrayStorage<f32, 3, 1>> = Vector3::new(1.0, 1.0, 0.0);
+    loop {
+        let p: nalgebra::Matrix<f32, nalgebra::Const<3>, nalgebra::Const<1>, nalgebra::ArrayStorage<f32, 3, 1>> = 2.0 * Vector3::new(rng.gen::<f32>(), rng.gen::<f32>(), 0.0) - unit;
+        if p.dot(&p) < 1.0 {
+            return p
+        }
+    }
+}
 
 pub struct Camera {
-  pub aspect_ratio: f64,
-  pub image_width: u32,
-  pub samples_per_pixel: u32,
-  pub max_depth: u32,
-  pixel_sample_scale: f64,
-  image_height: u32,
-  center: Point3,
-  pixelhundred_loc: Point3,
-  pixel_delta_u: Vec3,
-  pixel_delta_v: Vec3,
+    origin: Vector3<f32>,
+    lower_left_corner: Vector3<f32>,
+    horizontal: Vector3<f32>,
+    vertical: Vector3<f32>,
+    u: Vector3<f32>,
+    v: Vector3<f32>,
+    lens_radius: f32
 }
 
 impl Camera {
-  pub fn new(aspect_ratio: f64, image_width: u32, samples_per_pixel: u32, max_depth: u32) -> Self {
-    let image_height = ((image_width as f64 / aspect_ratio) as u32).max(1);
-    let center = Point3::new(0.0, 0.0, 0.0);
-    let focal_length = 1.0;
-    let viewport_height = 2.0;
-    let viewport_width = viewport_height * (image_width as f64 / image_height as f64);
-    let viewport_u = Vec3::new(viewport_width, 0.0, 0.0);
-    let viewport_v = Vec3::new(0.0, viewport_height, 0.0);
-    let pixel_delta_u: Vec3 = viewport_u / image_width as f64;
-    let pixel_delta_v: Vec3 = viewport_v / image_height as f64;
-    let viewport_upper_left = center - Vec3::new(0.0, 0.0, focal_length) - viewport_u / 2.0 - viewport_v / 2.0;
-    let pixelhundred_loc = viewport_upper_left + (pixel_delta_u + pixel_delta_v) * 0.5;
-    let pixel_sample_scale = 1.0 / samples_per_pixel as f64;
-    Self {
-      aspect_ratio,
-      image_width,
-      samples_per_pixel,
-      pixel_sample_scale,
-      max_depth,
-      image_height,
-      center,
-      pixelhundred_loc,
-      pixel_delta_u,
-      pixel_delta_v,
-    }
-  } //Caso começar a dar merda, implementar o Initialize
-
-  pub fn render(&self, world: &dyn hittable::Hittable) -> io::Result<()>{
-
-  let total_pixels = (self.image_height * self.image_width) as u64;
-
-  // Cria um arquivo chamado "image.ppm"
-  let mut file = File::create("image.ppm")?;
-
-  // Escreve o cabeçalho do arquivo PPM no arquivo
-  writeln!(file, "P3")?;
-  writeln!(file, "{} {}", self.image_width, self.image_height)?;
-  writeln!(file, "255")?;
-
-  let progressbar = ProgressBar::new(total_pixels);
-  progressbar.set_style(ProgressStyle::default_bar().template("[{elapsed}] [{wide_bar:.green}] {percent}% {msg}").unwrap());
-
-  // Escreve os valores RGB dos pixels no arquivo
-  for j in 0..self.image_height {
-    
-      for i in 0..self.image_width {
-        let mut pixel_color: Color = Color::new(0.0, 0.0, 0.0);
-        for _ in 0..self.samples_per_pixel {
-          let ray: Ray = self.get_ray(i, j);
-          pixel_color += Camera::ray_color(&ray, self.max_depth, world);
+    pub fn new(look_from: Vector3<f32>, look_at: Vector3<f32>, view_up: Vector3<f32>, vertical_fov: f32, aspect: f32, aperture: f32, focus_dist: f32) -> Self {
+        let theta = vertical_fov * f32::consts::PI / 180.0;
+        let half_height = focus_dist * f32::tan(theta / 2.0);
+        let half_width = aspect * half_height;
+        let w: nalgebra::Matrix<f32, nalgebra::Const<3>, nalgebra::Const<1>, nalgebra::ArrayStorage<f32, 3, 1>> = (look_from - look_at).normalize();
+        let u: nalgebra::Matrix<f32, nalgebra::Const<3>, nalgebra::Const<1>, nalgebra::ArrayStorage<f32, 3, 1>> = view_up.cross(&w).normalize();
+        let v: nalgebra::Matrix<f32, nalgebra::Const<3>, nalgebra::Const<1>, nalgebra::ArrayStorage<f32, 3, 1>> = w.cross(&u);
+        Camera {
+            origin: look_from,
+            lower_left_corner: look_from - half_width * u - half_height * v - focus_dist * w,
+            horizontal: 2.0 * half_width * u,
+            vertical: 2.0 * half_height * v,
+            u, v,
+            lens_radius: aperture / 2.0
         }
-        color::write_color(&mut file, &pixel_color.mul(self.pixel_sample_scale));
-        progressbar.inc(1);
-      }
-  }
-
-  println!("Arquivo de imagem gerado: image.ppm");
-  Ok(())
-
-  }
-
-  fn get_ray(&self, i: u32, j: u32) -> Ray {
-    let offset: Vec3 = Camera::sample_square();
-    let pixel_sample: Vec3 = self.pixelhundred_loc + (self.pixel_delta_u * (i as f64 + offset.x()) ) + (self.pixel_delta_v * (j as f64+offset.y()));
-
-    let ray_origin: Vec3 = self.center;
-    let ray_direction: Vec3 = pixel_sample - ray_origin;
-
-    Ray::new(ray_origin, ray_direction)
-  }
-
-  fn sample_square() -> Vec3 {
-    Vec3::new(random_double() - 0.5, random_double() - 0.5, 0.0)
-  }
-
-  fn ray_color(r: &ray::Ray, depth: u32, world: &dyn hittable::Hittable) -> Color {
-
-    if depth <= 0 {
-      return Color::new(0.0, 0.0, 0.0);
     }
 
-    let normal: Vec3 = Vec3::new(0.0, 0.0, 0.0);
-
-    let mut rec = hittable::HitRecord::new(Vec3::new(0.0, 0.0, 0.0), normal, 0.0, false);
-
-    if world.hit(r, Interval::new(0.001, INFINITYCONST), &mut rec){
-        
-        let direction: Vec3 = random_on_hemisphere(rec.normal);
-        return Self::ray_color(&Ray::new(rec.p, direction), depth-1, world) * 0.5;
+    pub fn get_ray(&self, s: f32, t: f32) -> Ray {
+        let rd: nalgebra::Matrix<f32, nalgebra::Const<3>, nalgebra::Const<1>, nalgebra::ArrayStorage<f32, 3, 1>> = self.lens_radius * random_in_unit_disk();
+        let offset: nalgebra::Matrix<f32, nalgebra::Const<3>, nalgebra::Const<1>, nalgebra::ArrayStorage<f32, 3, 1>> = self.u * rd.x + self.v * rd.y;
+        Ray::new(self.origin + offset, self.lower_left_corner + s * self.horizontal + t * self.vertical - self.origin - offset)
     }
-    
-    let unit_direction: Vec3 = unit_vector(r.direction());
-    
-    let t = 0.5 * (unit_direction.y() + 1.0);
-    Vec3::new(1.0, 1.0, 1.0) * (1.0 - t) + Vec3::new(0.5, 0.7, 1.0) * t
-  }
-
 }

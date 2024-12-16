@@ -1,51 +1,40 @@
-use std::ops::Sub;
-
-use crate::interval::Interval;
+use nalgebra::Vector3;
 use crate::ray::Ray;
-use crate::vecry::{Point3, dot};
-use crate::hittable::{HitRecord, Hittable};
+use crate::hitable::{Hitable, HitRecord};
+use crate::material::Material;
 
-pub struct Sphere {
-    center: Point3,
-    radius: f64,
+pub struct Sphere<M: Material> {
+    center: Vector3<f32>,
+    radius: f32,
+    material: M
 }
 
-impl Sphere {
-    pub fn new(center: Point3, radius: f64) -> Self {
-        Self {
-            center,
-            radius: radius.max(0.0),
+impl<M: Material> Sphere<M> {
+    pub fn new(center: Vector3<f32>, radius: f32, material: M) -> Self { Sphere {center, radius, material} }
+}
+
+impl<M: Material> Hitable for Sphere<M> {
+    fn hit(&self, ray: &Ray, t_min: f32, t_max: f32) -> Option<HitRecord> {
+        let oc: nalgebra::Matrix<f32, nalgebra::Const<3>, nalgebra::Const<1>, nalgebra::ArrayStorage<f32, 3, 1>> = ray.origin() - self.center;
+        let a: f32 = ray.direction().dot(&ray.direction());
+        let b: f32 = oc.dot(&ray.direction());
+        let c: f32 = oc.dot(&oc) - self.radius.powi(2);
+        let discriminant = b.powi(2) - a * c;
+        if discriminant > 0.0 {
+            let sqrt_discriminant = discriminant.sqrt();
+            let t: f32 = (-b - sqrt_discriminant) / a;
+            if t < t_max && t > t_min {
+                let p: nalgebra::Matrix<f32, nalgebra::Const<3>, nalgebra::Const<1>, nalgebra::ArrayStorage<f32, 3, 1>> = ray.point_at_parameter(t);
+                let normal: nalgebra::Matrix<f32, nalgebra::Const<3>, nalgebra::Const<1>, nalgebra::ArrayStorage<f32, 3, 1>> = (p - self.center) / self.radius;
+                return Some(HitRecord { t, p, normal, material: &self.material })
+            }
+            let t: f32 = (-b + sqrt_discriminant) / a;
+            if t < t_max && t > t_min {
+                let p: nalgebra::Matrix<f32, nalgebra::Const<3>, nalgebra::Const<1>, nalgebra::ArrayStorage<f32, 3, 1>> = ray.point_at_parameter(t);
+                let normal: nalgebra::Matrix<f32, nalgebra::Const<3>, nalgebra::Const<1>, nalgebra::ArrayStorage<f32, 3, 1>> = (p - self.center) / self.radius;
+                return Some(HitRecord { t, p, normal, material: &self.material })
+            }
         }
+        None
     }
-}
-
-impl Hittable for Sphere{
-  fn hit(&self, r: &Ray, ray_t: Interval, rec: &mut HitRecord) -> bool {
-    let oc = r.origin().sub(self.center);
-    let a = r.direction().length_squared();
-    let h = dot(r.direction(), &oc);
-    let c = oc.length_squared() - self.radius * self.radius;
-
-    let discriminant = h * h - a * c;
-    if discriminant < 0.0 {
-        return false; // No intersection
-    }
-
-    let sqrtd = discriminant.sqrt();
-
-    // Find the nearest root that lies within the acceptable range
-    let mut root = (h - sqrtd) / a;
-    if !ray_t.surronunds(root) {
-        root = (h + sqrtd) / a;
-        if !ray_t.surronunds(root) {
-            return false; // No valid root within range
-        }
-    }
-
-    rec.time = root;
-    rec.p = r.at(rec.time);
-    rec.normal = (rec.p - self.center) / self.radius;
-
-    true
-}
 }
