@@ -1,95 +1,111 @@
-use crate::hittable::HitRecord;
+use nalgebra::Vector3;
+use rand::Rng;
 use crate::ray::Ray;
-use crate::color::Color;
-use crate::vecry::{ unit_vector, dot, reflect, refract, random_unit_vector};
-use crate::rtweekend::random_double;
+use crate::hitable::HitRecord;
 
-pub trait Material: Send + Sync {
-    fn scatter(&self, r_in: &Ray, rec: &HitRecord, attenuation: &mut Color, scattered: &mut Ray) -> bool;
-}
-
-pub struct Lambertian {
-    albedo: Color,
-}
-
-impl Lambertian {
-    pub fn new(albedo: Color) -> Self {
-        Self { albedo }
+fn random_in_unit_sphere() -> Vector3<f32> {
+    let mut rng: rand::prelude::ThreadRng = rand::thread_rng();
+    let unit: nalgebra::Matrix<f32, nalgebra::Const<3>, nalgebra::Const<1>, nalgebra::ArrayStorage<f32, 3, 1>> = Vector3::new(1.0, 1.0, 1.0);
+    loop {
+        let p: nalgebra::Matrix<f32, nalgebra::Const<3>, nalgebra::Const<1>, nalgebra::ArrayStorage<f32, 3, 1>> = 2.0 * Vector3::new(rng.gen::<f32>(), rng.gen::<f32>(), rng.gen::<f32>()) - unit;
+        if p.magnitude_squared() < 1.0 {
+            return p
+        }
     }
 }
 
+fn reflect(v: &Vector3<f32>, n: &Vector3<f32>) -> Vector3<f32> {
+    v - 2.0 * v.dot(&n) * n
+}
+
+fn refract(v: &Vector3<f32>, n: &Vector3<f32>, ni_over_nt: f32) -> Option<Vector3<f32>> {
+    let uv: nalgebra::Matrix<f32, nalgebra::Const<3>, nalgebra::Const<1>, nalgebra::ArrayStorage<f32, 3, 1>> = v.normalize();
+    let dt: f32 = uv.dot(&n);
+    let discriminant: f32 = 1.0 - ni_over_nt.powi(2) * (1.0 - dt.powi(2));
+    if discriminant > 0.0 {
+        let refracted: nalgebra::Matrix<f32, nalgebra::Const<3>, nalgebra::Const<1>, nalgebra::ArrayStorage<f32, 3, 1>> = ni_over_nt * (uv - n * dt) - n * discriminant.sqrt();
+        Some(refracted)
+    } else {
+        None
+    }
+}
+
+fn schlick(cosine: f32, ref_idx: f32) -> f32 {
+    let r0: f32 = ((1.0 - ref_idx) / (1.0 + ref_idx)).powi(2);
+    r0 + (1.0 -r0) * (1.0 - cosine).powi(5)
+}
+
+pub trait Material: Sync {
+    fn scatter(&self, ray: &Ray, hit: &HitRecord) -> Option<(Ray, Vector3<f32>)>;
+}
+
+pub struct Lambertian {
+    albedo: Vector3<f32>
+}
+
+impl Lambertian {
+    pub fn new(albedo: Vector3<f32>) -> Self { Lambertian { albedo } }
+}
+
 impl Material for Lambertian {
-    fn scatter(&self, _r_in: &Ray, rec: &HitRecord, attenuation: &mut Color, scattered: &mut Ray) -> bool {
-        let scatter_direction = rec.normal + random_unit_vector();
-
-        // Catch degenerate scatter direction
-        let scatter_direction = if scatter_direction.near_zero() {
-            rec.normal
-        } else {
-            scatter_direction
-        };
-
-        *scattered = Ray::new(rec.p, scatter_direction);
-        *attenuation = self.albedo;
-        true
+    fn scatter(&self, _ray: &Ray, hit: &HitRecord) -> Option<(Ray, Vector3<f32>)> {
+        let target: nalgebra::Matrix<f32, nalgebra::Const<3>, nalgebra::Const<1>, nalgebra::ArrayStorage<f32, 3, 1>> = hit.p + hit.normal + random_in_unit_sphere();
+        let scattered: Ray = Ray::new(hit.p, target - hit.p);
+        Some((scattered, self.albedo))
     }
 }
 
 pub struct Metal {
-    albedo: Color,
-    fuzz: f64,
+    albedo: Vector3<f32>,
+    fuzz: f32
 }
 
 impl Metal {
-    pub fn new(albedo: Color, fuzz: f64) -> Self {
-        Self { albedo, fuzz: if fuzz < 1.0 { fuzz } else { 1.0 } }
+    pub fn new(albedo: Vector3<f32>, fuzz: f32) -> Self {
+        Metal { albedo, fuzz: if fuzz < 1.0 { fuzz } else { 1.0 } }
     }
 }
 
 impl Material for Metal {
-    fn scatter(&self, r_in: &Ray, rec: &HitRecord, attenuation: &mut Color, scattered: &mut Ray) -> bool {
-        let reflected = reflect(unit_vector(r_in.direction()), rec.normal);
-        let scattered_direction = reflected + random_unit_vector() * self.fuzz;
-        *scattered = Ray::new(rec.p, scattered_direction);
-        *attenuation = self.albedo;
-        dot(scattered.direction(), &rec.normal) > 0.0
+    fn scatter(&self, ray: &Ray, hit: &HitRecord) -> Option<(Ray, Vector3<f32>)> {
+        let mut reflected: nalgebra::Matrix<f32, nalgebra::Const<3>, nalgebra::Const<1>, nalgebra::ArrayStorage<f32, 3, 1>> = reflect(&ray.direction().normalize(), &hit.normal);
+        if self.fuzz > 0.0 { reflected += self.fuzz * random_in_unit_sphere() };
+        if reflected.dot(&hit.normal) > 0.0 {
+            let scattered: Ray = Ray::new(hit.p, reflected);
+            Some((scattered, self.albedo))
+        } else {
+            None
+        }
     }
 }
 
 pub struct Dielectric {
-    refraction_index: f64,
+    ref_idx: f32
 }
 
 impl Dielectric {
-    pub fn new(refraction_index: f64) -> Self {
-        Self { refraction_index }
-    }
-
-    fn reflectance(cosine: f64, refraction_index: f64) -> f64 {
-        // Use Schlick's approximation for reflectance.
-        let r0 = (1.0 - refraction_index) / (1.0 + refraction_index);
-        let r0 = r0 * r0;
-        r0 + (1.0 - r0) * (1.0 - cosine).powi(5)
-    }
+    pub fn new(ref_idx: f32) -> Self { Dielectric { ref_idx } }
 }
 
 impl Material for Dielectric {
-    fn scatter(&self, r_in: &Ray, rec: &HitRecord, attenuation: &mut Color, scattered: &mut Ray) -> bool {
-        *attenuation = Color::new(1.0, 1.0, 1.0);
-        let refraction_ratio = if rec.front_face { 1.0 / self.refraction_index } else { self.refraction_index };
-
-        let unit_direction = unit_vector(r_in.direction());
-        let cos_theta = f64::min(dot(&-unit_direction, &rec.normal), 1.0);
-        let sin_theta = (1.0 - cos_theta * cos_theta).sqrt();
-
-        let cannot_refract = refraction_ratio * sin_theta > 1.0;
-        let direction = if cannot_refract || Dielectric::reflectance(cos_theta, refraction_ratio) > random_double() {
-            reflect(unit_direction, rec.normal)
+    fn scatter(&self, ray: &Ray, hit: &HitRecord) -> Option<(Ray, Vector3<f32>)> {
+        let attenuation: nalgebra::Matrix<f32, nalgebra::Const<3>, nalgebra::Const<1>, nalgebra::ArrayStorage<f32, 3, 1>> = Vector3::new(1.0, 1.0, 1.0);
+        let (outward_normal, ni_over_nt, cosine) = if ray.direction().dot(&hit.normal) > 0.0 {
+            let cosine: f32 = self.ref_idx * ray.direction().dot(&hit.normal) / ray.direction().magnitude();
+            (-hit.normal, self.ref_idx, cosine)
         } else {
-            refract(unit_direction, rec.normal, refraction_ratio)
+            let cosine: f32 = -ray.direction().dot(&hit.normal) / ray.direction().magnitude();
+            (hit.normal, 1.0 / self.ref_idx, cosine)
         };
-
-        *scattered = Ray::new(rec.p, direction);
-        true
+        if let Some(refracted) = refract(&ray.direction(), &outward_normal, ni_over_nt) {
+            let reflect_prob = schlick(cosine, self.ref_idx);
+            if rand::thread_rng().gen::<f32>() >= reflect_prob {
+                let scattered: Ray = Ray::new(hit.p, refracted);
+                return Some((scattered, attenuation))
+            }
+        }
+        let reflected: nalgebra::Matrix<f32, nalgebra::Const<3>, nalgebra::Const<1>, nalgebra::ArrayStorage<f32, 3, 1>> = reflect(&ray.direction(), &hit.normal);
+        let scattered: Ray = Ray::new(hit.p, reflected);
+        Some((scattered, attenuation))
     }
 }
