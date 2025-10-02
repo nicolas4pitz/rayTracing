@@ -1,4 +1,4 @@
-// mod ray;
+mod ray;
 // mod hitable;
 // mod material;
 // mod sphere;
@@ -16,16 +16,30 @@
 
 use itertools::Itertools;
 use std::{fmt::format, fs, io};
+use indicatif::ProgressIterator;
+use glam::DVec3;
 
+
+const ASPECT_RADIO: f64 = 16.0 / 9.0;
 // Constantes para definir as dimensões da imagem e valor máximo de cor
-const IMAGE_HEIGTH: u32 = 256;
 const IMAGE_WIDTH: u32 = 256;
+const IMAGE_HEIGTH: u32 = ((IMAGE_WIDTH as f64 / ASPECT_RADIO) as u32);
+
+
+
 const MAX_VALUE: u8 = 255;
+
+
+
+
 
 fn main() -> io::Result<()> {
     // Gera uma imagem gradiente usando o produto cartesiano de coordenadas y e x
     let pixels: String = (0..IMAGE_HEIGTH)
         .cartesian_product(0..IMAGE_WIDTH) // Cria todas as combinações possíveis de (y, x)
+        .progress_count(
+            IMAGE_HEIGTH as u64 * IMAGE_WIDTH as u64
+        ) 
         .map(|(y, x)| {
             // Calcula os valores RGB normalizados (0.0 a 1.0) baseados na posição do pixel
             let red: f64 = x as f64 / (IMAGE_HEIGTH as f64 - 1.0);   // Gradiente horizontal (vermelho)
@@ -43,7 +57,7 @@ fn main() -> io::Result<()> {
         .join("\n");
     
     // Exibe os pixels no console (para debug)
-    println!("{}", pixels);
+    //println!("{}", pixels);
     
     // Escreve a imagem no formato PPM (Portable Pixmap Format)
     // P3 = formato ASCII, seguido por largura, altura, valor máximo e dados dos pixels

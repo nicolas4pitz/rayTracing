@@ -1,4 +1,4 @@
-use nalgebra::Vector3;
+use glam::DVec3;
 
 // pub struct Ray {
 //     a: Vector3<f32>,
@@ -14,3 +14,16 @@ use nalgebra::Vector3;
 //     pub fn direction(&self) -> Vector3<f32> { self.b }
 //     pub fn point_at_parameter(&self, t: f32) -> Vector3<f32> { self.a + t * self.b }
 // }
+
+struct Ray{
+  origin: DVec3,
+  direction: DVec3
+}
+
+impl Ray{
+
+  fn sense(&self, time: f64) -> DVec3{
+    self.origin + time * self.direction
+  }
+
+}
