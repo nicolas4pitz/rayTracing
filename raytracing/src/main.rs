@@ -84,12 +84,4 @@ fn main() -> io::Result<()> {
 }
 
 
-fn hit_sphere(center: &DVec3, radius: f64, ray: &Ray) -> bool{
-    let distanceOriginCenter:DVec3 = ray.origin - *center;
-    let a = ray.direction.dot(ray.direction);
-    let b = 2.0 * distanceOriginCenter.dot(ray.direction);
-    let c = distanceOriginCenter.dot(distanceOriginCenter) - radius * radius;
-    let discriminant = b * b - 4. * a *c;
-    discriminant >= 0.
 
-}
