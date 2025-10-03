@@ -3,11 +3,12 @@
 // use crate::hitable::{Hitable, HitRecord};
 // use crate::material::Material;
 
-// pub struct Sphere<M: Material> {
-//     center: Vector3<f32>,
-//     radius: f32,
-//     material: M
-// }
+use glam::DVec3;
+
+pub struct Sphere {
+    pub center: DVec3,
+    pub radius: f64,
+}
 
 // impl<M: Material> Sphere<M> {
 //     pub fn new(center: Vector3<f32>, radius: f32, material: M) -> Self { Sphere {center, radius, material} }

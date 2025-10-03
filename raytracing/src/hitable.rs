@@ -1,5 +1,9 @@
+use std::ops::Range;
+
+use glam::DVec3;
+
 // use nalgebra::Vector3;
-// use crate::ray::Ray;
+use crate::{ray::Ray, sphere::Sphere};
 // use crate::material::Material;
 
 // pub struct HitRecord<'a> {
@@ -9,32 +13,112 @@
 //     pub material: &'a dyn Material
 // }
 
-// pub trait Hitable: Sync {
-//     fn hit(&self, ray: &Ray, t_min: f32, t_max: f32) -> Option<HitRecord>;
-// }
+pub trait Hittable {
+    fn hit(
+        &self, 
+        ray: &Ray,
+        interval: Range<f64>, 
+        //t_min: f32, 
+        //t_max: f32
+    ) -> Option<HitRecord>;
+}
 
-// #[derive(Default)]
-// pub struct HitableList {
-//     list: Vec<Box<dyn Hitable>>
-// }
+pub struct HitRecord {
+    point: DVec3,
+    pub normal: DVec3,
+    t: f64,
+    front_face: bool,
+}
 
-// impl HitableList {
-//     pub fn push(&mut self, hitable: impl Hitable + 'static) {
-//         self.list.push(Box::new(hitable))
-//     }
-// }
+impl HitRecord {
+    fn with_face_normal(point: DVec3, outward_normal: DVec3, t: f64, ray: &Ray) -> Self {
+        let (front_face, normal) = HitRecord::calc_face_normal(ray, &outward_normal);
+        HitRecord {
+            point,
+            normal,
+            t,
+            front_face,
+        }
+    }
 
-// impl Hitable for HitableList {
-//     fn hit(&self, ray: &Ray, t_min: f32, t_max: f32) -> Option<HitRecord> {
-//         let mut closest_so_far = t_max;
-//         let mut hit_anything: Option<HitRecord> = None;
-//         for h in self.list.iter() {
-//             if let Some(hit) = h.hit(ray, t_min, closest_so_far) {
-//                 closest_so_far = hit.t;
-//                 hit_anything = Some(hit);
-//             }
-//         }
-//         hit_anything
-//     }
-// }
+    fn calc_face_normal(ray: &Ray, outward_normal: &DVec3) -> (bool, DVec3) {
+        let front_face: bool = ray.direction.dot(*outward_normal) < 0.;
+        let normal: DVec3 = if front_face {
+            *outward_normal
+        } else {
+            -*outward_normal
+        };
+        (front_face, normal)
+    }
+}
 
+impl Hittable for Sphere {
+    fn hit(
+        &self,
+        ray: &Ray, 
+        interval: Range<f64>, 
+        //t_min: f32, 
+        //t_max: f32
+    ) -> Option<HitRecord> {
+        let distance_origin_center: DVec3 = ray.origin - self.center;
+        let a: f64 = ray.direction.length_squared();
+        let half_b: f64 = distance_origin_center.dot(ray.direction);
+        //let b = 2.0 * distanceOriginCenter.dot(ray.direction);
+        let c: f64 = distance_origin_center.length_squared() - self.radius * self.radius;
+
+        let discriminant = half_b * half_b - a * c;
+
+        if discriminant < 0. {
+            return None;
+        }
+
+        let sqrtd = discriminant.sqrt();
+
+        let mut root = (-half_b - sqrtd) / a;
+        if !interval.contains(&root) {
+            root = (-half_b + sqrtd) / a;
+            if !interval.contains(&root) {
+                return None;
+            }
+        }
+
+        let t = root;
+        let point = ray.at(t);
+        let outward_normal = (point - self.center) / self.radius;
+
+        let rec: HitRecord = HitRecord::with_face_normal(point, outward_normal, t, ray);
+
+        Some(rec)
+    }
+}
+
+pub struct HitableList {
+    pub objects: Vec<Box<dyn Hittable>>,
+}
+
+impl HitableList {
+    fn clear(&mut self) {
+        self.objects = vec![]
+    }
+
+    pub fn add<T>(&mut self, object: T)
+    where
+        T: Hittable + 'static,
+    {
+        self.objects.push(Box::new(object));
+    }
+}
+
+impl Hittable for HitableList {
+    fn hit(&self, ray: &Ray, interval: Range<f64>) -> Option<HitRecord> {
+        let (_closest, hit_record) = self.objects.iter().fold((interval.end, None), |acc, item| {
+            if let Some(temp_rec) = item.hit(ray, interval.start..acc.0) {
+                (temp_rec.t, Some(temp_rec))
+            } else {
+                acc
+            }
+        });
+
+        hit_record
+    }
+}

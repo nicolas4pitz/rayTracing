@@ -1,11 +1,13 @@
 mod ray;
+mod hitable;
+mod sphere;
 
 use glam::DVec3;
 use indicatif::ProgressIterator;
 use itertools::Itertools;
-use std::{fmt::format, fs, io};
+use std::{fs, io, vec};
 
-use crate::ray::Ray;
+use crate::{hitable::HitableList, ray::Ray, sphere::Sphere};
 
 const ASPECT_RADIO: f64 = 16.0 / 9.0;
 // Constantes para definir as dimensões da imagem e valor máximo de cor
@@ -29,6 +31,18 @@ const MAX_VALUE: u8 = 255;
 
 fn main() -> io::Result<()> {
 
+  let mut world = HitableList {objects: vec![]};
+
+  world.add(Sphere {
+    center: DVec3::new(0.0, 0.0, -1.0),
+    radius: 0.5,
+  });
+
+  world.add(Sphere {
+    center: DVec3::new(0.0, -100.5, -1.),
+    radius: 100.,
+  });
+
     let pixel_delta_u: DVec3 = VIEWPORT_U / IMAGE_WIDTH as f64;
     let pixel_delta_v: DVec3 = VIEWPORT_V / IMAGE_HEIGTH as f64;
 
@@ -41,20 +55,25 @@ fn main() -> io::Result<()> {
 
     // Gera uma imagem gradiente usando o produto cartesiano de coordenadas y e x
     let pixels: String = (0..IMAGE_HEIGTH)
-        .cartesian_product(0..IMAGE_WIDTH) // Cria todas as combinações possíveis de (y, x)
-        .progress_count(IMAGE_HEIGTH as u64 * IMAGE_WIDTH as u64)
+        .cartesian_product(0..IMAGE_WIDTH)  // Para cada pixel (y,x)
+        .progress_count(IMAGE_HEIGTH as u64 * IMAGE_WIDTH as u64)                // Barra de progresso
         .map(|(y, x)| {
+            // 1. Calcular posição 3D deste pixel no viewport
+            let pixel_center: DVec3 = pixel100_loc 
+                + (x as f64 * pixel_delta_u)    // Move horizontalmente
+                + (y as f64 * pixel_delta_v);   // Move verticalmente
             
-            let pixel_center: DVec3 = pixel100_loc + (x as f64 * pixel_delta_u) + (y as f64 * pixel_delta_v);
+            // 2. Criar raio da câmera através deste pixel
             let ray_direction: DVec3 = pixel_center - CAMERA_CENTER;
-
             let ray = Ray{
                 origin: CAMERA_CENTER,
                 direction: ray_direction,
             };
-
-            let pixel_color = ray.color() * 255.0;
-
+            
+            // 3. Calcular cor baseada no que o raio "vê"
+            let pixel_color = ray.color(&world) * 255.0;
+            
+            // 4. Formatar como RGB
             // Converte os valores normalizados para a escala 0-255 e formata como string
             format!("{} {} {}", pixel_color.x, pixel_color.y, pixel_color.z)
         })
@@ -64,9 +83,6 @@ fn main() -> io::Result<()> {
         // Junta cada linha de pixels com espaços e depois junta todas as linhas com quebras de linha
         .map(|chunk| chunk.into_iter().join(" "))
         .join("\n");
-
-    // Exibe os pixels no console (para debug)
-    //println!("{}", pixels);
 
     // Escreve a imagem no formato PPM (Portable Pixmap Format)
     // P3 = formato ASCII, seguido por largura, altura, valor máximo e dados dos pixels
