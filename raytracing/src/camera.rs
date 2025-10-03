@@ -1,50 +1,125 @@
-use std::f32;
-use nalgebra::Vector3;
-use rand::Rng;
-use crate::ray::Ray;
+// use std::f32;
+// use nalgebra::Vector3;
+// use rand::Rng;
+// use crate::ray::Ray;
 
-fn random_in_unit_disk() -> Vector3<f32> {
-    let mut rng: rand::prelude::ThreadRng = rand::thread_rng();
-    let unit: nalgebra::Matrix<f32, nalgebra::Const<3>, nalgebra::Const<1>, nalgebra::ArrayStorage<f32, 3, 1>> = Vector3::new(1.0, 1.0, 0.0);
-    loop {
-        let p: nalgebra::Matrix<f32, nalgebra::Const<3>, nalgebra::Const<1>, nalgebra::ArrayStorage<f32, 3, 1>> = 2.0 * Vector3::new(rng.gen::<f32>(), rng.gen::<f32>(), 0.0) - unit;
-        if p.dot(&p) < 1.0 {
-            return p
-        }
-    }
-}
+// fn random_in_unit_disk() -> Vector3<f32> {
+//     let mut rng: rand::prelude::ThreadRng = rand::thread_rng();
+//     let unit: nalgebra::Matrix<f32, nalgebra::Const<3>, nalgebra::Const<1>, nalgebra::ArrayStorage<f32, 3, 1>> = Vector3::new(1.0, 1.0, 0.0);
+//     loop {
+//         let p: nalgebra::Matrix<f32, nalgebra::Const<3>, nalgebra::Const<1>, nalgebra::ArrayStorage<f32, 3, 1>> = 2.0 * Vector3::new(rng.gen::<f32>(), rng.gen::<f32>(), 0.0) - unit;
+//         if p.dot(&p) < 1.0 {
+//             return p
+//         }
+//     }
+// }
+
+use std::fs;
+
+use std::{io};
+
+use glam::DVec3;
+use indicatif::ProgressIterator;
+use itertools::Itertools;
+
+use crate::{hitable::Hittable, ray::Ray};
 
 pub struct Camera {
-    origin: Vector3<f32>,
-    lower_left_corner: Vector3<f32>,
-    horizontal: Vector3<f32>,
-    vertical: Vector3<f32>,
-    u: Vector3<f32>,
-    v: Vector3<f32>,
-    lens_radius: f32
+    image_width: u32,
+    image_heigth: u32,
+    max_value: u8,
+    aspect_radio: f64,
+    center: DVec3,
+    pixel_delta_u: DVec3,
+    pixel_delta_v: DVec3,
+    //viewport_upper_left: DVec3,
+    pixel100_loc: DVec3,
 }
 
 impl Camera {
-    pub fn new(look_from: Vector3<f32>, look_at: Vector3<f32>, view_up: Vector3<f32>, vertical_fov: f32, aspect: f32, aperture: f32, focus_dist: f32) -> Self {
-        let theta = vertical_fov * f32::consts::PI / 180.0;
-        let half_height = focus_dist * f32::tan(theta / 2.0);
-        let half_width = aspect * half_height;
-        let w: nalgebra::Matrix<f32, nalgebra::Const<3>, nalgebra::Const<1>, nalgebra::ArrayStorage<f32, 3, 1>> = (look_from - look_at).normalize();
-        let u: nalgebra::Matrix<f32, nalgebra::Const<3>, nalgebra::Const<1>, nalgebra::ArrayStorage<f32, 3, 1>> = view_up.cross(&w).normalize();
-        let v: nalgebra::Matrix<f32, nalgebra::Const<3>, nalgebra::Const<1>, nalgebra::ArrayStorage<f32, 3, 1>> = w.cross(&u);
-        Camera {
-            origin: look_from,
-            lower_left_corner: look_from - half_width * u - half_height * v - focus_dist * w,
-            horizontal: 2.0 * half_width * u,
-            vertical: 2.0 * half_height * v,
-            u, v,
-            lens_radius: aperture / 2.0
-        }
+    pub fn new(image_width: u32, aspect_radio: f64) -> Self {
+
+        let max_value: u8 = 255;
+
+        // Constantes para definir as dimensões da imagem e valor máximo de cor
+        
+        let image_heigth: u32 = if ((image_width as f64 / aspect_radio) as u32) < 1 {
+            1
+        } else {
+            (image_width as f64 / aspect_radio) as u32
+        }; //talvez reverter
+
+        let viewport_heigth: f64 = 2.0;
+        let viewport_width: f64 = viewport_heigth * (image_width as f64 / image_heigth as f64);
+
+        let focal_length: f64 = 1.0;
+        let center: DVec3 = DVec3::ZERO;
+
+        let viewport_u: DVec3 = DVec3::new(viewport_width, 0., 0.);
+        let viewport_v: DVec3 = DVec3::new(0., -viewport_heigth, 0.);
+
+        let max_value: u8 = 255;
+
+        let pixel_delta_u: DVec3 = viewport_u / image_width as f64;
+        let pixel_delta_v: DVec3 = viewport_v / image_heigth as f64;
+
+        let viewport_upper_left: DVec3 = center
+        - DVec3::new(0., 0., focal_length)
+        - viewport_u / 2.
+        - viewport_v / 2.;
+
+
+        let pixel100_loc: DVec3 = viewport_upper_left + 0.5 * (pixel_delta_u * pixel_delta_v);
+
+        Self { image_width, image_heigth, max_value, aspect_radio, center, pixel_delta_u, pixel_delta_v, pixel100_loc }
     }
 
-    pub fn get_ray(&self, s: f32, t: f32) -> Ray {
-        let rd: nalgebra::Matrix<f32, nalgebra::Const<3>, nalgebra::Const<1>, nalgebra::ArrayStorage<f32, 3, 1>> = self.lens_radius * random_in_unit_disk();
-        let offset: nalgebra::Matrix<f32, nalgebra::Const<3>, nalgebra::Const<1>, nalgebra::ArrayStorage<f32, 3, 1>> = self.u * rd.x + self.v * rd.y;
-        Ray::new(self.origin + offset, self.lower_left_corner + s * self.horizontal + t * self.vertical - self.origin - offset)
-    }
+    pub fn render_to_disk<T>(&self, world: T) -> io::Result<()> where T: Hittable {
+        let pixels: String = (0..self.image_heigth)
+        .cartesian_product(0..self.image_width)  // Para cada pixel (y,x)
+        .progress_count(self.image_heigth as u64 * self.image_width as u64  )                // Barra de progresso
+        .map(|(y, x)| {
+            // 1. Calcular posição 3D deste pixel no viewport
+            let pixel_center: DVec3 = self.pixel100_loc 
+                + (x as f64 * self.pixel_delta_u)    // Move horizontalmente
+                + (y as f64 * self.pixel_delta_v);   // Move verticalmente
+            
+            // 2. Criar raio da câmera através deste pixel
+            let ray_direction: DVec3 = pixel_center - self.center;
+            let ray = Ray{
+                origin: self.center,
+                direction: ray_direction,
+            };
+            
+            // 3. Calcular cor baseada no que o raio "vê"
+            let pixel_color = ray.color(&world) * 255.0;
+            
+            // 4. Formatar como RGB
+            // Converte os valores normalizados para a escala 0-255 e formata como string
+            format!("{} {} {}", pixel_color.x, pixel_color.y, pixel_color.z)
+        })
+        // Agrupa os pixels em linhas (chunks) de acordo com a largura da imagem
+        .chunks(self.image_width as usize)
+        .into_iter()
+        // Junta cada linha de pixels com espaços e depois junta todas as linhas com quebras de linha
+        .map(|chunk| chunk.into_iter().join(" "))
+        .join("\n");
+
+    // Escreve a imagem no formato PPM (Portable Pixmap Format)
+    // P3 = formato ASCII, seguido por largura, altura, valor máximo e dados dos pixels
+    fs::write(
+        "output.ppm",
+        format!(
+            "P3 
+{} {}
+{}
+{pixels}
+", self.image_width, self.image_heigth, self.max_value),) 
+
+} 
+
+
 }
+        
+
+
