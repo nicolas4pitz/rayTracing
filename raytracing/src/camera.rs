@@ -21,6 +21,7 @@ use std::{io};
 use glam::DVec3;
 use indicatif::ProgressIterator;
 use itertools::Itertools;
+use rand::Rng;
 
 use crate::{hitable::Hittable, ray::Ray};
 
@@ -34,6 +35,7 @@ pub struct Camera {
     pixel_delta_v: DVec3,
     //viewport_upper_left: DVec3,
     pixel100_loc: DVec3,
+    samples_per_pixel: u32
 }
 
 impl Camera {
@@ -71,7 +73,7 @@ impl Camera {
 
         let pixel100_loc: DVec3 = viewport_upper_left + 0.5 * (pixel_delta_u * pixel_delta_v);
 
-        Self { image_width, image_heigth, max_value, aspect_radio, center, pixel_delta_u, pixel_delta_v, pixel100_loc }
+        Self { image_width, image_heigth, max_value, aspect_radio, center, pixel_delta_u, pixel_delta_v, pixel100_loc, samples_per_pixel: 100 }
     }
 
     pub fn render_to_disk<T>(&self, world: T) -> io::Result<()> where T: Hittable {
@@ -79,24 +81,15 @@ impl Camera {
         .cartesian_product(0..self.image_width)  // Para cada pixel (y,x)
         .progress_count(self.image_heigth as u64 * self.image_width as u64  )                // Barra de progresso
         .map(|(y, x)| {
-            // 1. Calcular posição 3D deste pixel no viewport
-            let pixel_center: DVec3 = self.pixel100_loc 
-                + (x as f64 * self.pixel_delta_u)    // Move horizontalmente
-                + (y as f64 * self.pixel_delta_v);   // Move verticalmente
+            let scale_factor: f64 = (self.samples_per_pixel as f64).recip();
             
-            // 2. Criar raio da câmera através deste pixel
-            let ray_direction: DVec3 = pixel_center - self.center;
-            let ray = Ray{
-                origin: self.center,
-                direction: ray_direction,
-            };
-            
-            // 3. Calcular cor baseada no que o raio "vê"
-            let pixel_color = ray.color(&world) * 255.0;
+            let multisampled_pixel_color: DVec3 = (0..self.samples_per_pixel).into_iter().map(|_| {
+              self.get_ray(x as i32, y as i32).color(&world) * 255.0 * scale_factor
+            }).sum::<DVec3>();
             
             // 4. Formatar como RGB
             // Converte os valores normalizados para a escala 0-255 e formata como string
-            format!("{} {} {}", pixel_color.x, pixel_color.y, pixel_color.z)
+            format!("{} {} {}", multisampled_pixel_color.x, multisampled_pixel_color.y, multisampled_pixel_color.z)
         })
         // Agrupa os pixels em linhas (chunks) de acordo com a largura da imagem
         .chunks(self.image_width as usize)
@@ -117,6 +110,28 @@ impl Camera {
 ", self.image_width, self.image_heigth, self.max_value),) 
 
 } 
+
+  fn get_ray(&self, i: i32, j: i32) -> Ray {
+
+    let pixel_center: DVec3 = self.pixel100_loc + (i as f64 * self.pixel_delta_u) + (j as f64 * self.pixel_delta_v);
+
+    let pixel_sample: DVec3 = pixel_center + self.sample_square();
+
+    let ray_origin: DVec3 = self.center;
+    let ray_direction: DVec3 = pixel_sample - ray_origin;
+
+    Ray { origin: self.center, direction: ray_direction }
+
+  }
+
+  fn sample_square(&self) -> DVec3{
+    let mut rn = rand::rng();
+
+    let px: f64 = -0.5 + rn.random::<f64>();
+    let py: f64 = -0.5 + rn.random::<f64>();
+    
+    (px * self.pixel_delta_u) + (py * self.pixel_delta_v)
+  }
 
 
 }

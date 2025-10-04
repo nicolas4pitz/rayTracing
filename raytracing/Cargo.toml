@@ -7,4 +7,5 @@ edition = "2021"
 glam = "0.30.8"
 indicatif = "0.18.0"
 itertools = "0.14.0"
+rand = "0.9.2"
 
