@@ -14,7 +14,7 @@ use crate::{camera::Camera, hitable::HitableList, ray::Ray, sphere::Sphere};
 
 fn main() -> io::Result<()> {
 
-  let mut world = HitableList {objects: vec![]};
+  let mut world: HitableList = HitableList {objects: vec![]};
 
   world.add(Sphere {
     center: DVec3::new(0.0, 0.0, -1.0),
@@ -26,7 +26,7 @@ fn main() -> io::Result<()> {
     radius: 100.,
   });
 
-    let camera = Camera::new(400, 16.0/4.0);
+    let camera = Camera::new(400, 16.0/9.0);
     camera.render_to_disk(world)?;
 
     Ok(())

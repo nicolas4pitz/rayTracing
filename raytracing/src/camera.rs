@@ -35,7 +35,8 @@ pub struct Camera {
     pixel_delta_v: DVec3,
     //viewport_upper_left: DVec3,
     pixel100_loc: DVec3,
-    samples_per_pixel: u32
+    samples_per_pixel: u32,
+    max_depth: u32,
 }
 
 impl Camera {
@@ -73,7 +74,7 @@ impl Camera {
 
         let pixel100_loc: DVec3 = viewport_upper_left + 0.5 * (pixel_delta_u * pixel_delta_v);
 
-        Self { image_width, image_heigth, max_value, aspect_radio, center, pixel_delta_u, pixel_delta_v, pixel100_loc, samples_per_pixel: 100 }
+        Self { image_width, image_heigth, max_value, aspect_radio, center, pixel_delta_u, pixel_delta_v, pixel100_loc, samples_per_pixel: 100, max_depth: 50 }
     }
 
     pub fn render_to_disk<T>(&self, world: T) -> io::Result<()> where T: Hittable {
@@ -84,7 +85,12 @@ impl Camera {
             let scale_factor: f64 = (self.samples_per_pixel as f64).recip();
             
             let multisampled_pixel_color: DVec3 = (0..self.samples_per_pixel).into_iter().map(|_| {
-              self.get_ray(x as i32, y as i32).color(&world) * 255.0 * scale_factor
+              let color = self.get_ray(x as i32, y as i32).color(self.max_depth as i32, &world) * 255.0 * scale_factor;
+              DVec3 {
+                x: linear_to_gamma(color.x),
+                y: linear_to_gamma(color.y),
+                z: linear_to_gamma(color.z),
+              }
             }).sum::<DVec3>();
             
             // 4. Formatar como RGB
@@ -138,3 +144,6 @@ impl Camera {
         
 
 
+fn linear_to_gamma(linear: f64) -> f64{
+  linear.sqrt()
+}

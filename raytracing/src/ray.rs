@@ -1,4 +1,5 @@
 use glam::DVec3;
+use rand::Rng;
 
 use crate::hitable::Hittable;
 
@@ -28,14 +29,22 @@ impl Ray{
     self.origin + time * self.direction
   }
 
-  pub fn color<T>(&self, world: &T) -> DVec3 where T: Hittable{
-    if let Some(rec) = world.hit(&self, (0.)..f64::INFINITY){
-      return 0.5 * (rec.normal + DVec3::new(1., 1., 1.))
+  pub fn color<T>(&self, depth:i32, world: &T) -> DVec3 where T: Hittable{
+
+    if depth <= 0{
+      return DVec3::new(0., 0., 0.);
+    }
+
+    if let Some(rec) = world.hit(&self, (0.001)..f64::INFINITY){
+      let direction: DVec3 = rec.normal + random_unit_vector();
+      let ray = Ray {origin: rec.point, direction};
+
+      return 0.5 * ray.color(depth - 1, world);
     }
 
     let unit_direction: DVec3 = self.direction.normalize();
 
-    let a = 0.5 * (unit_direction.y + 1.0);
+    let a: f64 = 0.5 * (unit_direction.y + 1.0);
 
     return (1.0 - a) * DVec3::new(1.0, 1.0, 1.0) + a * DVec3::new(0.5, 0.7, 1.0);
   }
@@ -59,3 +68,29 @@ impl Ray{
 //     }
 
 // }
+
+fn random_in_unit_sphere() -> DVec3{
+  let mut rng = rand::rng();
+
+  loop{
+    let vec = DVec3::new(rng.random_range(-1.0..1.), rng.random_range(-1.0..1.), rng.random_range(-1.0..1.));
+
+    if vec.length_squared() < 1. {
+      break vec;
+    }
+  }
+}
+
+fn random_unit_vector() -> DVec3{
+  return random_in_unit_sphere().normalize();
+}
+
+fn random_on_hemisphere(normal: &DVec3) -> DVec3{
+  let on_unit_sphere = random_unit_vector();
+  if on_unit_sphere.dot(*normal) > 0.0 {
+    on_unit_sphere
+  } else {
+    -on_unit_sphere
+  }
+}
+

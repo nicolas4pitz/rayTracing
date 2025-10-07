@@ -24,7 +24,7 @@ pub trait Hittable {
 }
 
 pub struct HitRecord {
-    point: DVec3,
+    pub point: DVec3,
     pub normal: DVec3,
     t: f64,
     front_face: bool,
