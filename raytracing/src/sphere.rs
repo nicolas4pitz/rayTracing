@@ -5,9 +5,12 @@
 
 use glam::DVec3;
 
+use crate::hitable::Material;
+
 pub struct Sphere {
     pub center: DVec3,
     pub radius: f64,
+    pub material: Material
 }
 
 // impl<M: Material> Sphere<M> {

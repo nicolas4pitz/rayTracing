@@ -2,6 +2,8 @@ use std::ops::Range;
 
 use glam::DVec3;
 
+use crate::ray::random_unit_vector;
+
 // use nalgebra::Vector3;
 use crate::{ray::Ray, sphere::Sphere};
 // use crate::material::Material;
@@ -23,21 +25,70 @@ pub trait Hittable {
     ) -> Option<HitRecord>;
 }
 
+
+#[non_exhaustive]
+#[derive(Clone)]
+pub enum Material {
+  Lambertian { albedo: DVec3 },
+  Metal { albedo: DVec3 },
+}
+
+pub struct Scattered {
+  pub attenuation: DVec3,
+  pub scattered: Ray,
+}
+
+impl Material {
+  pub fn scatter(&self, r_in: &Ray, hit_record: HitRecord) -> Option<Scattered>{
+    match self {
+      Material::Lambertian { albedo } =>{
+        let mut scatter_direction = hit_record.normal + random_unit_vector();
+
+        if scatter_direction.abs_diff_eq(DVec3::new(0., 0., 0.), 1e-8,){
+          scatter_direction = hit_record.normal;
+        }
+
+        let scattered = Ray {
+          origin: hit_record.point,
+          direction: scatter_direction,
+        };
+
+        Some(Scattered { attenuation: *albedo, scattered})
+      }
+
+      Material::Metal { albedo } => {
+        let reflected: DVec3 = reflect(r_in.direction.normalize(), hit_record.normal,);
+
+        Some(Scattered { attenuation: *albedo, scattered: Ray { origin: hit_record.point, direction: reflected }, })
+
+      }
+
+      _ => None,
+
+    }
+  }
+}
+
+
+
+#[derive(Clone)]
 pub struct HitRecord {
     pub point: DVec3,
     pub normal: DVec3,
     t: f64,
     front_face: bool,
+    pub material: Material
 }
 
 impl HitRecord {
-    fn with_face_normal(point: DVec3, outward_normal: DVec3, t: f64, ray: &Ray) -> Self {
+    fn with_face_normal(point: DVec3, outward_normal: DVec3, t: f64, ray: &Ray, material: Material) -> Self {
         let (front_face, normal) = HitRecord::calc_face_normal(ray, &outward_normal);
         HitRecord {
             point,
             normal,
             t,
             front_face,
+            material
         }
     }
 
@@ -56,7 +107,7 @@ impl Hittable for Sphere {
     fn hit(
         &self,
         ray: &Ray, 
-        interval: Range<f64>, 
+        interval: Range<f64>,
         //t_min: f32, 
         //t_max: f32
     ) -> Option<HitRecord> {
@@ -86,7 +137,7 @@ impl Hittable for Sphere {
         let point = ray.at(t);
         let outward_normal = (point - self.center) / self.radius;
 
-        let rec: HitRecord = HitRecord::with_face_normal(point, outward_normal, t, ray);
+        let rec: HitRecord = HitRecord::with_face_normal(point, outward_normal, t, ray, self.material.clone());
 
         Some(rec)
     }
@@ -121,4 +172,9 @@ impl Hittable for HitableList {
 
         hit_record
     }
+}
+
+
+fn reflect(v: DVec3, n: DVec3) -> DVec3{
+  return v-2. * v.dot(n)*n;
 }

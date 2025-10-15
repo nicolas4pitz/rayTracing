@@ -1,7 +1,7 @@
 use glam::DVec3;
 use rand::Rng;
 
-use crate::hitable::Hittable;
+use crate::hitable::{Hittable, Scattered};
 
 // pub struct Ray {
 //     a: Vector3<f32>,
@@ -36,10 +36,14 @@ impl Ray{
     }
 
     if let Some(rec) = world.hit(&self, (0.001)..f64::INFINITY){
-      let direction: DVec3 = rec.normal + random_unit_vector();
-      let ray = Ray {origin: rec.point, direction};
+      if let Some(Scattered{
+        attenuation,
+        scattered,
+      }) = rec.material.scatter(self, rec.clone()){
+        return attenuation * scattered.color(depth-1, world);
+      }
 
-      return 0.5 * ray.color(depth - 1, world);
+      return DVec3::new(0., 0., 0.);
     }
 
     let unit_direction: DVec3 = self.direction.normalize();
@@ -81,7 +85,7 @@ fn random_in_unit_sphere() -> DVec3{
   }
 }
 
-fn random_unit_vector() -> DVec3{
+pub fn random_unit_vector() -> DVec3{
   return random_in_unit_sphere().normalize();
 }
 

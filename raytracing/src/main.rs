@@ -8,7 +8,7 @@ use indicatif::ProgressIterator;
 use itertools::Itertools;
 use std::{fs, io, vec};
 
-use crate::{camera::Camera, hitable::HitableList, ray::Ray, sphere::Sphere};
+use crate::{camera::Camera, hitable::{HitableList, Material}, ray::Ray, sphere::Sphere};
 
 
 
@@ -16,14 +16,35 @@ fn main() -> io::Result<()> {
 
   let mut world: HitableList = HitableList {objects: vec![]};
 
-  world.add(Sphere {
-    center: DVec3::new(0.0, 0.0, -1.0),
-    radius: 0.5,
-  });
+  let material_ground: Material = Material::Lambertian { albedo: DVec3 { x: 0.8, y: 0.8, z: 0.0 }, };
+  let material_center: Material = Material::Lambertian { albedo: DVec3 { x: 0.7, y: 0.3, z: 0.3 }, };
+  let material_left: Material = Material::Metal { albedo: DVec3 { x: 0.8, y: 0.8, z: 0.8 }, };
+  let material_rigth: Material = Material::Metal { albedo: DVec3 { x: 0.8, y: 0.6, z: 0.2 }, };
+
+  
 
   world.add(Sphere {
     center: DVec3::new(0.0, -100.5, -1.),
     radius: 100.,
+    material: material_ground
+  });
+
+  world.add(Sphere {
+    center: DVec3::new(0.0, 0.0, -1.0),
+    radius: 0.5,
+    material: material_center,
+  });
+
+  world.add(Sphere {
+    center: DVec3::new(-1.0, 0.0, -1.0),
+    radius: 0.5,
+    material: material_left
+  });
+
+  world.add(Sphere {
+    center: DVec3::new(1., 0., -1.),
+    radius: 0.5,
+    material: material_rigth
   });
 
     let camera = Camera::new(400, 16.0/9.0);
