@@ -17,9 +17,9 @@ fn main() -> io::Result<()> {
   let mut world: HitableList = HitableList {objects: vec![]};
 
   let material_ground: Material = Material::Lambertian { albedo: DVec3 { x: 0.8, y: 0.8, z: 0.0 }, };
-  let material_center: Material = Material::Lambertian { albedo: DVec3 { x: 0.7, y: 0.3, z: 0.3 }, };
-  let material_left: Material = Material::Metal { albedo: DVec3 { x: 0.8, y: 0.8, z: 0.8 }, };
-  let material_rigth: Material = Material::Metal { albedo: DVec3 { x: 0.8, y: 0.6, z: 0.2 }, };
+  let material_center: Material = Material::Lambertian { albedo: DVec3 { x: 0.5, y: 0.1, z: 0.6 }, };
+  let material_left: Material = Material::Metal { albedo: DVec3 { x: 0.8, y: 0.8, z: 0.8 }, fuzz: 0.3};
+  let material_rigth: Material = Material::Metal { albedo: DVec3 { x: 0.8, y: 0.6, z: 0.2 }, fuzz: 1.0};
 
   
 

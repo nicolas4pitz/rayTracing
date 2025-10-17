@@ -30,7 +30,7 @@ pub trait Hittable {
 #[derive(Clone)]
 pub enum Material {
   Lambertian { albedo: DVec3 },
-  Metal { albedo: DVec3 },
+  Metal { albedo: DVec3, fuzz: f64 },
 }
 
 pub struct Scattered {
@@ -56,10 +56,18 @@ impl Material {
         Some(Scattered { attenuation: *albedo, scattered})
       }
 
-      Material::Metal { albedo } => {
+      Material::Metal { albedo, fuzz } => {
         let reflected: DVec3 = reflect(r_in.direction.normalize(), hit_record.normal,);
 
-        Some(Scattered { attenuation: *albedo, scattered: Ray { origin: hit_record.point, direction: reflected }, })
+        let scattered = Ray {
+          origin: hit_record.point, direction: reflected + *fuzz * random_unit_vector(),
+        };
+
+        if scattered.direction.dot(hit_record.normal) > 0. {
+          Some(Scattered { attenuation: *albedo, scattered, })
+        } else{
+          None
+        }
 
       }
 

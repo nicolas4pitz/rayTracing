@@ -85,17 +85,24 @@ impl Camera {
             let scale_factor: f64 = (self.samples_per_pixel as f64).recip();
             
             let multisampled_pixel_color: DVec3 = (0..self.samples_per_pixel).into_iter().map(|_| {
-              let color = self.get_ray(x as i32, y as i32).color(self.max_depth as i32, &world) * 255.0 * scale_factor;
-              DVec3 {
-                x: linear_to_gamma(color.x),
-                y: linear_to_gamma(color.y),
-                z: linear_to_gamma(color.z),
-              }
-            }).sum::<DVec3>();
+              self.get_ray(x as i32, y as i32).color(self.max_depth as i32, &world)}).sum::<DVec3>() * scale_factor;
+
+              let color = DVec3 {
+                x: linear_to_gamma(
+                  multisampled_pixel_color.x,
+                ),
+                y: linear_to_gamma(
+                  multisampled_pixel_color.y,
+                ),
+                z: linear_to_gamma(
+                  multisampled_pixel_color.z,
+                ),
+              }.clamp(DVec3::splat(0.), DVec3::splat(0.999),) * 256.;
+
             
             // 4. Formatar como RGB
             // Converte os valores normalizados para a escala 0-255 e formata como string
-            format!("{} {} {}", multisampled_pixel_color.x, multisampled_pixel_color.y, multisampled_pixel_color.z)
+            format!("{} {} {}", color.x, color.y, color.z)
         })
         // Agrupa os pixels em linhas (chunks) de acordo com a largura da imagem
         .chunks(self.image_width as usize)
