@@ -1,6 +1,7 @@
 use std::ops::Range;
 
 use glam::DVec3;
+use rand::{ Rng};
 
 use crate::ray::random_unit_vector;
 
@@ -31,6 +32,7 @@ pub trait Hittable {
 pub enum Material {
   Lambertian { albedo: DVec3 },
   Metal { albedo: DVec3, fuzz: f64 },
+  Dielectric { index_of_refraction: f64 }
 }
 
 pub struct Scattered {
@@ -71,12 +73,53 @@ impl Material {
 
       }
 
+      Material::Dielectric { index_of_refraction } => {
+        let attenuation = DVec3::splat(1.0);
+
+        let mut rng = rand::rng();
+
+        let ri:f64 = if hit_record.front_face { index_of_refraction.recip() }else {*index_of_refraction}; 
+
+        let unit_direction = r_in.direction.normalize();
+        let refracted = refract(unit_direction, hit_record.normal, ri);
+
+        // let cos_theta = (-unit_direction).dot(hit_record.normal).min(1.0);
+        // let sin_theta: f64 = (1.0 - cos_theta*cos_theta).sqrt();
+
+        // let cannot_refract = ri * sin_theta > 1.0;
+        // let direction: DVec3 = if cannot_refract || reflectance(cos_theta, ri) > rng.random::<f64>() {
+        //   reflect(unit_direction, hit_record.normal)
+        // } else{
+        //   refract(unit_direction, hit_record.normal, ri)
+        // };
+
+        //let refracted = refract(unit_direction, hit_record.normal, ri);
+
+        Some(Scattered { attenuation, scattered: Ray {
+          origin: hit_record.point,
+          direction: refracted,
+        } })
+      }
+
       _ => None,
 
     }
   }
 }
 
+
+fn refract(uv: DVec3, n: DVec3, etai_over_tat: f64) -> DVec3{
+  let cos_theta: f64 = -((uv).dot(n).min(1.0));
+  let r_out_perp: DVec3 = etai_over_tat * (uv + cos_theta * n);
+  let r_out_parallel: DVec3 = ((1.0 - r_out_perp.length_squared()).abs()).sqrt() * n;
+  return r_out_perp + r_out_parallel;
+}
+
+fn reflectance(cosine: f64, ref_idx: f64) -> f64{
+  let mut r0 = (1. - ref_idx) / (1. + ref_idx);
+  r0 = r0 * r0;
+  return r0 + (1. -r0) * (1. - cosine).powf(5.);
+}
 
 
 #[derive(Clone)]

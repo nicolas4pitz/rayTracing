@@ -18,8 +18,8 @@ fn main() -> io::Result<()> {
 
   let material_ground: Material = Material::Lambertian { albedo: DVec3 { x: 0.8, y: 0.8, z: 0.0 }, };
   let material_center: Material = Material::Lambertian { albedo: DVec3 { x: 0.5, y: 0.1, z: 0.6 }, };
-  let material_left: Material = Material::Metal { albedo: DVec3 { x: 0.8, y: 0.8, z: 0.8 }, fuzz: 0.3};
-  let material_rigth: Material = Material::Metal { albedo: DVec3 { x: 0.8, y: 0.6, z: 0.2 }, fuzz: 1.0};
+  let material_left: Material = Material::Dielectric { index_of_refraction: 1.5 };
+  let material_rigth: Material = Material::Metal { albedo: DVec3 { x: 0.8, y: 0.6, z: 0.2 }, fuzz: 0.0};
 
   
 
