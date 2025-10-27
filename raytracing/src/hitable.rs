@@ -78,26 +78,34 @@ impl Material {
 
         let mut rng = rand::rng();
 
-        let ri:f64 = if hit_record.front_face { index_of_refraction.recip() }else {*index_of_refraction}; 
+        let ri:f64;
 
-        let unit_direction = r_in.direction.normalize();
-        let refracted = refract(unit_direction, hit_record.normal, ri);
+        if hit_record.front_face {
+          ri = 1.0/index_of_refraction;
+        } else{
+          ri = *index_of_refraction;
+        }
 
-        // let cos_theta = (-unit_direction).dot(hit_record.normal).min(1.0);
-        // let sin_theta: f64 = (1.0 - cos_theta*cos_theta).sqrt();
+        let unit_direction: DVec3 = r_in.direction.normalize();
+        // let refracted = refract(unit_direction, hit_record.normal, ri);
 
-        // let cannot_refract = ri * sin_theta > 1.0;
-        // let direction: DVec3 = if cannot_refract || reflectance(cos_theta, ri) > rng.random::<f64>() {
-        //   reflect(unit_direction, hit_record.normal)
-        // } else{
-        //   refract(unit_direction, hit_record.normal, ri)
-        // };
+        let cos_theta: f64 = (-unit_direction).dot(hit_record.normal).min(1.0);
+        let sin_theta: f64 = (1.0 - cos_theta*cos_theta).sqrt();
 
-        //let refracted = refract(unit_direction, hit_record.normal, ri);
+        let cannot_refract: bool = ri * sin_theta > 1.0;
+
+        let direction: DVec3;
+
+        if cannot_refract || reflectance(cos_theta, ri) > rng.random::<f64>() {
+          direction = reflect(unit_direction, hit_record.normal);
+        } else{
+          direction = refract(unit_direction, hit_record.normal, ri);
+        };
+
 
         Some(Scattered { attenuation, scattered: Ray {
           origin: hit_record.point,
-          direction: refracted,
+          direction: direction
         } })
       }
 
@@ -116,9 +124,9 @@ fn refract(uv: DVec3, n: DVec3, etai_over_tat: f64) -> DVec3{
 }
 
 fn reflectance(cosine: f64, ref_idx: f64) -> f64{
-  let mut r0 = (1. - ref_idx) / (1. + ref_idx);
+  let mut r0 = (1.0 - ref_idx) / (1.0 + ref_idx);
   r0 = r0 * r0;
-  return r0 + (1. -r0) * (1. - cosine).powf(5.);
+  return r0 + (1.0 - r0) * (1.0 - cosine).powf(5.0);
 }
 
 
