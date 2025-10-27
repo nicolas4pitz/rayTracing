@@ -27,20 +27,41 @@ use crate::{hitable::Hittable, ray::Ray};
 
 pub struct Camera {
     image_width: u32,
+    #[doc(hidden)]
     image_heigth: u32,
+    #[doc(hidden)]
     max_value: u8,
+    #[doc(hidden)]
     aspect_radio: f64,
+    #[doc(hidden)]
     center: DVec3,
+    #[doc(hidden)]
     pixel_delta_u: DVec3,
+    #[doc(hidden)]
     pixel_delta_v: DVec3,
     //viewport_upper_left: DVec3,
+    #[doc(hidden)]
     pixel100_loc: DVec3,
     samples_per_pixel: u32,
-    max_depth: u32,
+    max_depth: u32, 
+    vfov: f64,
+    lookfrom: DVec3,
+    lookat: DVec3,
+    vup: DVec3,
+    #[doc(hidden)]
+    u: DVec3,
+    #[doc(hidden)]
+    v: DVec3,
+    #[doc(hidden)]
+    w: DVec3
 }
 
 impl Camera {
-    pub fn new(image_width: u32, aspect_radio: f64) -> Self {
+    pub fn new(image_width: u32, aspect_radio: f64, look_from: Option<DVec3>, look_at: Option<DVec3>, vup: Option<DVec3>) -> Self {
+
+      let lookfrom = look_from.unwrap_or(DVec3::NEG_Z);
+      let lookat = look_at.unwrap_or(DVec3::ZERO);
+      let vup = vup.unwrap_or(DVec3::Y);
 
         let max_value: u8 = 255;
 
@@ -52,29 +73,37 @@ impl Camera {
             (image_width as f64 / aspect_radio) as u32
         }; //talvez reverter
 
-        let viewport_heigth: f64 = 2.0;
+        let focal_length: f64 = (lookfrom-lookat).length();
+        let vfov: f64 = 20.0;
+        let theta = vfov.to_radians();
+        let h = (theta / 2.).tan();
+
+        let viewport_heigth: f64 = 2.0 * h * focal_length;
         let viewport_width: f64 = viewport_heigth * (image_width as f64 / image_heigth as f64);
 
-        let focal_length: f64 = 1.0;
-        let center: DVec3 = DVec3::ZERO;
+        let center = lookfrom;
 
-        let viewport_u: DVec3 = DVec3::new(viewport_width, 0., 0.);
-        let viewport_v: DVec3 = DVec3::new(0., -viewport_heigth, 0.);
+        let w = (lookfrom - lookat).normalize();
+        let u = vup.cross(w).normalize();
+        let v = w.cross(u);
 
         let max_value: u8 = 255;
 
-        let pixel_delta_u: DVec3 = viewport_u / image_width as f64;
-        let pixel_delta_v: DVec3 = viewport_v / image_heigth as f64;
+        let viewport_u: DVec3 = viewport_width * u;
+        let viewport_v: DVec3 = viewport_heigth * -v;
+
+        let pixel_delta_u = viewport_u / image_width as f64;
+        let pixel_delta_v = viewport_v / image_heigth as f64;
 
         let viewport_upper_left: DVec3 = center
-        - DVec3::new(0., 0., focal_length)
+        - ( focal_length * w )
         - viewport_u / 2.
         - viewport_v / 2.;
 
 
         let pixel100_loc: DVec3 = viewport_upper_left + 0.5 * (pixel_delta_u * pixel_delta_v);
 
-        Self { image_width, image_heigth, max_value, aspect_radio, center, pixel_delta_u, pixel_delta_v, pixel100_loc, samples_per_pixel: 100, max_depth: 50 }
+        Self { image_width, image_heigth, max_value, aspect_radio, center, pixel_delta_u, pixel_delta_v, pixel100_loc, samples_per_pixel: 100, max_depth: 50, vfov, lookfrom, lookat, vup, u, v, w }
     }
 
     pub fn render_to_disk<T>(&self, world: T) -> io::Result<()> where T: Hittable {
