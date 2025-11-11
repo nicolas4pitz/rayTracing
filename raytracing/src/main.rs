@@ -8,7 +8,7 @@ use indicatif::ProgressIterator;
 use itertools::Itertools;
 use std::{fs, io, vec};
 
-use crate::{camera::Camera, hitable::{HitableList, Material}, ray::Ray, sphere::Sphere};
+use crate::{camera::Camera, hitable::{HitableList, Material}, ray::Ray, sphere::Sphere, camera::CameraNew};
 
 
 
@@ -72,7 +72,10 @@ fn main() -> io::Result<()> {
     material: material_rigth
   });
 
-    let camera = Camera::new(400, 16.0/9.0, Some(DVec3::new(-2., 2., 1.)), Some(DVec3::new(0., 0., -1.)), Some(DVec3::Y),);
+    let camera = Camera::new(CameraNew { 
+      image_width: 400, aspect_ratio: 16.0/9.0, look_from: Some(DVec3::new(-2., 2., 1.)), look_at: Some(DVec3::new(0., 0., -1.)), vup: Some(DVec3::Y), focus_dist: Some(3.4), defocus_angle: Some(0.0)
+    });
+
     camera.render_to_disk(world)?;
 
     Ok(())
