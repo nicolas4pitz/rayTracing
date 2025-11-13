@@ -34,46 +34,75 @@ fn main() -> io::Result<()> {
   // });
 
 
-  let material_ground: Material = Material::Lambertian { albedo: DVec3 { x: 0.8, y: 0.8, z: 0.0 }, };
-  let material_center: Material = Material::Lambertian { albedo: DVec3 { x: 0.5, y: 0.1, z: 0.6 }, };
-  let material_left: Material = Material::Dielectric { index_of_refraction: 1.5 };
-  let material_buble: Material = Material::Dielectric { index_of_refraction: 1.0/1.5 };
-  let material_rigth: Material = Material::Metal { albedo: DVec3 { x: 0.8, y: 0.6, z: 0.2 }, fuzz: 0.0};
+  // 1. CHÃO - Material difuso amarelado
+  let material_ground = Material::Lambertian { 
+      albedo: DVec3::new(0.8, 0.8, 0.0)  // RGB: Amarelo opaco
+  };
 
-  
+  // 2. ESFERA CENTRAL - Material difuso roxo
+  let material_center = Material::Lambertian { 
+      albedo: DVec3::new(0.5, 0.1, 0.6)  // RGB: Roxo
+  };
 
+  // 3. VIDRO - Material dielétrico (refração)
+  let material_left = Material::Dielectric { 
+      index_of_refraction: 1.5  // Índice de refração do vidro
+  };
+
+  // 4. BOLHA DE AR - Vidro com índice invertido
+  let material_buble = Material::Dielectric { 
+      index_of_refraction: 1.0/1.5  // Cria efeito de bolha
+  };
+
+  // 5. METAL - Material reflexivo dourado
+  let material_rigth = Material::Metal { 
+      albedo: DVec3::new(0.8, 0.6, 0.2),  // RGB: Dourado
+      fuzz: 0.0  // Sem difusão (espelho perfeito)
+  };
+
+  // CHÃO - Esfera gigante simulando superfície plana
   world.add(Sphere {
-    center: DVec3::new(0.0, -100.5, -1.),
-    radius: 100.,
-    material: material_ground
+      center: DVec3::new(0.0, -100.5, -1.0),
+      radius: 100.0,
+      material: material_ground
   });
 
+  // ESFERA CENTRAL - Objeto principal roxo
   world.add(Sphere {
-    center: DVec3::new(0.0, 0.0, -1.0),
-    radius: 0.5,
-    material: material_center,
+      center: DVec3::new(0.0, 0.0, -1.0),
+      radius: 0.5,
+      material: material_center
   });
 
+  // ESFERA DE VIDRO - Esquerda
   world.add(Sphere {
-    center: DVec3::new(-1.0, 0.0, -1.0),
-    radius: 0.5,
-    material: material_left.clone()
+      center: DVec3::new(-1.0, 0.0, -1.0),
+      radius: 0.5,
+      material: material_left.clone()
   });
 
+  // BOLHA INTERNA - Raio negativo inverte as normais!
   world.add(Sphere {
-    center: DVec3::new(-1.0, 0.0, -1.0),
-    radius: -0.4,
-    material: material_left
+      center: DVec3::new(-1.0, 0.0, -1.0),
+      radius: -0.4,  // TRUQUE: raio negativo = oco por dentro
+      material: material_left
   });
 
+  // ESFERA METÁLICA - Direita
   world.add(Sphere {
-    center: DVec3::new(1., 0., -1.),
-    radius: 0.5,
-    material: material_rigth
+      center: DVec3::new(1.0, 0.0, -1.0),
+      radius: 0.5,
+      material: material_rigth
   });
 
     let camera = Camera::new(CameraNew { 
-      image_width: 400, aspect_ratio: 16.0/9.0, look_from: Some(DVec3::new(-2., 2., 1.)), look_at: Some(DVec3::new(0., 0., -1.)), vup: Some(DVec3::Y), focus_dist: Some(3.4), defocus_angle: Some(0.0)
+      image_width: 400,              // Resolução horizontal
+      aspect_ratio: 16.0/9.0,        // Proporção widescreen
+      look_from: Some(DVec3::new(-2., 2., 1.)),  // Posição da câmera
+      look_at: Some(DVec3::new(0., 0., -1.)),    // Ponto focal
+      vup: Some(DVec3::Y),           // Vetor "para cima"
+      focus_dist: Some(3.4),         // Distância focal
+      defocus_angle: Some(0.0)       // Ângulo de desfoque (DOF desligado)
     });
 
     camera.render_to_disk(world)?;

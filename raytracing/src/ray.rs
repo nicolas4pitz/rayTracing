@@ -19,8 +19,8 @@ use crate::hitable::{Hittable, Scattered};
 // }
 
 pub struct Ray{
-  pub origin: DVec3,
-  pub direction: DVec3
+  pub origin: DVec3, // Ponto de Origem
+  pub direction: DVec3 // Direção não normalizada
 }
 
 impl Ray{
@@ -30,26 +30,32 @@ impl Ray{
   }
 
   pub fn color<T>(&self, depth:i32, world: &T) -> DVec3 where T: Hittable{
-
+    
+    // Caso Base: Limite de Profuncidade atingido
     if depth <= 0{
-      return DVec3::new(0., 0., 0.);
+      return DVec3::new(0., 0., 0.); // Preto
     }
 
+    //Teste de colisão (0.001 evita a acne de sombra)
     if let Some(rec) = world.hit(&self, (0.001)..f64::INFINITY){
+      // Se o material espalha luz
       if let Some(Scattered{
         attenuation,
         scattered,
       }) = rec.material.scatter(self, rec.clone()){
+        //Recursão: Cor atenuada * cor de raio espalhado
         return attenuation * scattered.color(depth-1, world);
       }
 
+      // Material absorve toda a luz
       return DVec3::new(0., 0., 0.);
     }
 
+    // Céu: Gradiente baseado na altura
     let unit_direction: DVec3 = self.direction.normalize();
+    let a: f64 = 0.5 * (unit_direction.y + 1.0); // Interpolação 0→1
 
-    let a: f64 = 0.5 * (unit_direction.y + 1.0);
-
+    // Branco + Azul ceu
     return (1.0 - a) * DVec3::new(1.0, 1.0, 1.0) + a * DVec3::new(0.5, 0.7, 1.0);
   }
 
@@ -73,6 +79,7 @@ impl Ray{
 
 // }
 
+// Vetor aleatório dentro de esfera unitária
 fn random_in_unit_sphere() -> DVec3{
   let mut rng = rand::rng();
 
@@ -85,6 +92,7 @@ fn random_in_unit_sphere() -> DVec3{
   }
 }
 
+// Vetor unitário aleatório (direção)
 pub fn random_unit_vector() -> DVec3{
   return random_in_unit_sphere().normalize();
 }

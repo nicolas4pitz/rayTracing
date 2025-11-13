@@ -8,9 +8,9 @@ use glam::DVec3;
 use crate::hitable::Material;
 
 pub struct Sphere {
-    pub center: DVec3,
-    pub radius: f64,
-    pub material: Material
+    pub center: DVec3, // Posição no espaço
+    pub radius: f64, // Raio da esfera
+    pub material: Material // Material da superficie
 }
 
 // impl<M: Material> Sphere<M> {

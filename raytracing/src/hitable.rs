@@ -16,6 +16,7 @@ use crate::{ray::Ray, sphere::Sphere};
 //     pub material: &'a dyn Material
 // }
 
+// Interface universal
 pub trait Hittable {
     fn hit(
         &self, 
@@ -30,22 +31,31 @@ pub trait Hittable {
 #[non_exhaustive]
 #[derive(Clone)]
 pub enum Material {
-  Lambertian { albedo: DVec3 },
-  Metal { albedo: DVec3, fuzz: f64 },
-  Dielectric { index_of_refraction: f64 }
+  Lambertian { 
+    albedo: DVec3 // Cor difusa (refexao opaca)
+  },
+  Metal { 
+    albedo: DVec3,  // Cor metalica
+    fuzz: f64 // Difusão da reflexão (0.0 = espelho perfeito)
+  },
+  Dielectric { 
+    index_of_refraction: f64 // Indice de refração (vidro = 1.5)
+  }
 }
 
 pub struct Scattered {
-  pub attenuation: DVec3,
-  pub scattered: Ray,
+  pub attenuation: DVec3, // Quanto da Luz é absorvida
+  pub scattered: Ray, // Raio espalhado
 }
 
 impl Material {
   pub fn scatter(&self, r_in: &Ray, hit_record: HitRecord) -> Option<Scattered>{
     match self {
       Material::Lambertian { albedo } =>{
+        // Direção aleatória na normal
         let mut scatter_direction = hit_record.normal + random_unit_vector();
 
+        // Evitar vetores zero
         if scatter_direction.abs_diff_eq(DVec3::new(0., 0., 0.), 1e-8,){
           scatter_direction = hit_record.normal;
         }
@@ -59,46 +69,53 @@ impl Material {
       }
 
       Material::Metal { albedo, fuzz } => {
+        // Reflexão especular
         let reflected: DVec3 = reflect(r_in.direction.normalize(), hit_record.normal,);
 
+        // Adionar difusão (fuzz)
         let scattered = Ray {
           origin: hit_record.point, direction: reflected + *fuzz * random_unit_vector(),
         };
 
+        // Verificar se refletiu na direção correta
         if scattered.direction.dot(hit_record.normal) > 0. {
           Some(Scattered { attenuation: *albedo, scattered, })
         } else{
-          None
+          None // Absourveu a luz
         }
 
       }
 
       Material::Dielectric { index_of_refraction } => {
-        let attenuation = DVec3::splat(1.0);
+        let attenuation = DVec3::splat(1.0); // Vidro não absorve a luz
 
         let mut rng = rand::rng();
 
         let ri:f64;
 
+        //Calcular razão de refracão
         if hit_record.front_face {
-          ri = 1.0/index_of_refraction;
+          ri = 1.0/index_of_refraction; // Ar -> Vidro
         } else{
-          ri = *index_of_refraction;
+          ri = *index_of_refraction; // Vidro -> Ar
         }
 
         let unit_direction: DVec3 = r_in.direction.normalize();
-        // let refracted = refract(unit_direction, hit_record.normal, ri);
-
+        
+        // Lei de Snell
         let cos_theta: f64 = (-unit_direction).dot(hit_record.normal).min(1.0);
         let sin_theta: f64 = (1.0 - cos_theta*cos_theta).sqrt();
 
+        // Refexão total interna
         let cannot_refract: bool = ri * sin_theta > 1.0;
 
         let direction: DVec3;
 
         if cannot_refract || reflectance(cos_theta, ri) > rng.random::<f64>() {
+          //Reflete
           direction = reflect(unit_direction, hit_record.normal);
         } else{
+          //Refrata
           direction = refract(unit_direction, hit_record.normal, ri);
         };
 
@@ -115,7 +132,7 @@ impl Material {
   }
 }
 
-
+// Lei de Snell
 fn refract(uv: DVec3, n: DVec3, etai_over_tat: f64) -> DVec3{
   let cos_theta: f64 = -((uv).dot(n).min(1.0));
   let r_out_perp: DVec3 = etai_over_tat * (uv + cos_theta * n);
@@ -123,6 +140,7 @@ fn refract(uv: DVec3, n: DVec3, etai_over_tat: f64) -> DVec3{
   return r_out_perp + r_out_parallel;
 }
 
+// Aproximação de Schlick 
 fn reflectance(cosine: f64, ref_idx: f64) -> f64{
   let mut r0 = (1.0 - ref_idx) / (1.0 + ref_idx);
   r0 = r0 * r0;
@@ -130,13 +148,14 @@ fn reflectance(cosine: f64, ref_idx: f64) -> f64{
 }
 
 
+// Estrutura padrao para implementações do HitRecord
 #[derive(Clone)]
 pub struct HitRecord {
-    pub point: DVec3,
-    pub normal: DVec3,
-    t: f64,
-    front_face: bool,
-    pub material: Material
+    pub point: DVec3, // Ponto de Interseção
+    pub normal: DVec3, // Normal à superficie
+    t: f64, // Distância ao longo do raio
+    front_face: bool, // Raio atingiu de frente?
+    pub material: Material // Material do objeto
 }
 
 impl HitRecord {
@@ -156,7 +175,7 @@ impl HitRecord {
         let normal: DVec3 = if front_face {
             *outward_normal
         } else {
-            -*outward_normal
+            -*outward_normal // Inverte se atingiu por tras
         };
         (front_face, normal)
     }
@@ -171,6 +190,7 @@ impl Hittable for Sphere {
         //t_max: f32
     ) -> Option<HitRecord> {
         let distance_origin_center: DVec3 = ray.origin - self.center;
+        // Equação quadrática: at² + 2bt + c = 0
         let a: f64 = ray.direction.length_squared();
         let half_b: f64 = distance_origin_center.dot(ray.direction);
         //let b = 2.0 * distanceOriginCenter.dot(ray.direction);
