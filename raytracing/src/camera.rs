@@ -1,65 +1,63 @@
-// use std::f32;
-// use nalgebra::Vector3;
-// use rand::Rng;
-// use crate::ray::Ray;
-
-// fn random_in_unit_disk() -> Vector3<f32> {
-//     let mut rng: rand::prelude::ThreadRng = rand::thread_rng();
-//     let unit: nalgebra::Matrix<f32, nalgebra::Const<3>, nalgebra::Const<1>, nalgebra::ArrayStorage<f32, 3, 1>> = Vector3::new(1.0, 1.0, 0.0);
-//     loop {
-//         let p: nalgebra::Matrix<f32, nalgebra::Const<3>, nalgebra::Const<1>, nalgebra::ArrayStorage<f32, 3, 1>> = 2.0 * Vector3::new(rng.gen::<f32>(), rng.gen::<f32>(), 0.0) - unit;
-//         if p.dot(&p) < 1.0 {
-//             return p
-//         }
-//     }
-// }
-
-use std::fs;
-
-use std::io;
+use std::{fs, io};
 
 use glam::DVec3;
+use indicatif::ParallelProgressIterator;
 use indicatif::ProgressIterator;
 use itertools::Itertools;
-use rand::Rng;
+use rand::prelude::*;
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
-use crate::{hitable::Hittable, ray::Ray};
+use crate::{hittable::Hittable, ray::Ray};
 
+/// Hidden docs are calculated fields
 pub struct Camera {
-    // CONFIGURAÇÕES DE IMAGEM
-    image_width: u32,          // Largura em pixels
-    image_heigth: u32,         // Altura calculada
-    aspect_radio: f64,         // Proporção largura/altura
-    max_value: u8,             // Valor máximo de cor (255)
-    
-    // AMOSTRAGEM E QUALIDADE
-    samples_per_pixel: u32,    // Anti-aliasing (100 amostras)
-    max_depth: u32,            // Profundidade de recursão (50)
-    
-    // POSICIONAMENTO DA CÂMERA
-    lookfrom: DVec3,           // Posição no espaço 3D
-    lookat: DVec3,             // Para onde aponta
-    vup: DVec3,                // Orientação vertical
+    /// Rendered image width in pixel count
+    image_width: u32,
+    #[doc(hidden)]
+    image_height: u32,
+    #[doc(hidden)]
+    max_value: u8,
+    /// Ratio of image width over height
+    aspect_ratio: f64,
+    #[doc(hidden)]
     center: DVec3,
+    #[doc(hidden)]
+    pixel_delta_u: DVec3,
+    #[doc(hidden)]
+    pixel_delta_v: DVec3,
+    // viewport_upper_left: DVec3,
+    #[doc(hidden)]
+    pixel00_loc: DVec3,
+    /// Count of random samples for each pixel
+    samples_per_pixel: u32,
+    /// Maximum number of ray bounces into scene
+    max_depth: u32,
+    /// Vertical view angle (field of view)
     vfov: f64,
-    
-    // VETORES ORTONORMAIS (Base da câmera)
-    u: DVec3,                  // Eixo horizontal (direita)
-    v: DVec3,                  // Eixo vertical (cima)
-    w: DVec3,                  // Eixo de profundidade (trás)
-    
-    // PROFUNDIDADE DE CAMPO
-    defocus_angle: f64,        // Abertura do diafragma
-    focus_dist: f64,           // Distância de foco
-    defocus_disk_u: DVec3,     // Disco de desfoque horizontal
-    defocus_disk_v: DVec3,     // Disco de desfoque vertical
-    
-    // GEOMETRIA DO VIEWPORT
-    pixel_delta_u: DVec3,      // Espaçamento horizontal entre pixels
-    pixel_delta_v: DVec3,      // Espaçamento vertical entre pixels
-    pixel100_loc: DVec3        // Localização do primeiro pixel
-}
+    /// Point camera is looking from
+    lookfrom: DVec3,
+    /// Point camera is looking at
+    lookat: DVec3,
+    /// Camera-relative "up" direction
+    vup: DVec3,
 
+    /// basis vectors
+    #[doc(hidden)]
+    u: DVec3,
+    #[doc(hidden)]
+    v: DVec3,
+    #[doc(hidden)]
+    w: DVec3,
+
+    /// Variation angle of rays through each pixel
+    defocus_angle: f64,
+    /// Distance from camera lookfrom point to plane of perfect focus
+    focus_dist: f64,
+    /// Defocus disk horizontal radius
+    defocus_disk_u: DVec3,
+    /// Defocus disk vertical radius
+    defocus_disk_v: DVec3,
+}
 pub struct CameraNew {
     pub image_width: u32,
     pub aspect_ratio: f64,
@@ -69,67 +67,77 @@ pub struct CameraNew {
     pub focus_dist: Option<f64>,
     pub defocus_angle: Option<f64>,
 }
-
 impl Camera {
     pub fn new(config: CameraNew) -> Self {
-        // Constantes para definir as dimensões da imagem
-        let lookfrom = config.look_from.unwrap_or(DVec3::NEG_Z);
+        let lookfrom =
+            config.look_from.unwrap_or(DVec3::NEG_Z);
         let lookat = config.look_at.unwrap_or(DVec3::ZERO);
         let vup = config.vup.unwrap_or(DVec3::Y);
         let focus_dist = config.focus_dist.unwrap_or(10.);
-        let defocus_angle = config.defocus_angle.unwrap_or(0.);
-        
-        // Calculo da dimensao
-        let image_heigth: u32 = (config.image_width as f64 / config.aspect_ratio) as u32; 
-
-        //Campo de Visão (FOV)
-        let vfov: f64 = 20.0; // Angulo vertical em graus
-        let theta = vfov.to_radians();
-        let h = (theta / 2.).tan(); // Altura Tangecial
-
-        //Dimensões do Viewport
-        let viewport_heigth: f64 = 2.0 * h * focus_dist;
-        let viewport_width: f64 = viewport_heigth * (config.image_width as f64 / image_heigth as f64);
-
-        let center = lookfrom;
-
-        // SISTEMA DE COORDENADAS DA CÂMERA
-        let w = (lookfrom - lookat).normalize(); // Para tras
-        let u = vup.cross(w).normalize(); // Para direita
-        let v = w.cross(u); // Para cima
+        let defocus_angle =
+            config.defocus_angle.unwrap_or(0.);
 
         let max_value: u8 = 255;
+        let image_height: u32 = (config.image_width as f64
+            / config.aspect_ratio)
+            as u32;
 
-        // Vetores do Viewport
-        let viewport_u: DVec3 = viewport_width * u;
-        let viewport_v: DVec3 = viewport_heigth * -v; // Negativo = tela cresce para baixo
+        let vfov: f64 = 20.0;
+        let theta = vfov.to_radians();
+        let h = (theta / 2.).tan();
 
-        // Espaçamento entre cada pixel
-        let pixel_delta_u = viewport_u / config.image_width as f64;
-        let pixel_delta_v = viewport_v / image_heigth as f64;
+        let viewport_height = 2. * h * focus_dist;
+        let viewport_width: f64 = viewport_height
+            * (config.image_width as f64
+                / image_height as f64);
 
-        // Canto Superior Esquerdo
-        let viewport_upper_left: DVec3 =
-            center - focus_dist * w - viewport_u / 2. - viewport_v / 2.;
+        let center: DVec3 = lookfrom;
 
-        // Centro do Primeiro pixel 
-        let pixel100_loc: DVec3 = viewport_upper_left + 0.5 * (pixel_delta_u * pixel_delta_v);
+        // Calculate the u,v,w unit basis vectors for the camera coordinate frame.
+        let w = (lookfrom - lookat).normalize();
+        let u = vup.cross(w).normalize();
+        let v = w.cross(u);
 
-        // Profundidade de campo
-        let defocus_radius = focus_dist * (defocus_angle / 2.).to_radians().tan();
+        // ## Calculate the vectors across the horizontal and down the vertical viewport edges.
+        // Vector across viewport horizontal edge
+        let viewport_u = viewport_width * u;
+        // Vector down viewport vertical edge
+        let viewport_v = viewport_height * -v;
+
+        // Calculate the horizontal and vertical delta vectors from pixel to pixel.
+        let pixel_delta_u: DVec3 =
+            viewport_u / config.image_width as f64;
+        let pixel_delta_v: DVec3 =
+            viewport_v / image_height as f64;
+
+        // Calculate the location of the upper left pixel.
+        let viewport_upper_left: DVec3 = center
+            - focus_dist * w
+            - viewport_u / 2.
+            - viewport_v / 2.;
+        let pixel00_loc: DVec3 = viewport_upper_left
+            + 0.5 * (pixel_delta_u + pixel_delta_v);
+
+        // Calculate the camera defocus disk basis vectors.
+        //   no tan: 0.296705972839036
+        // with tan: 0.29746145598814155
+        let defocus_radius = focus_dist
+            * (defocus_angle / 2.).to_radians().tan();
+
         let defocus_disk_u = u * defocus_radius;
         let defocus_disk_v = v * defocus_radius;
 
         Self {
             image_width: config.image_width,
-            image_heigth,
+            image_height,
             max_value,
-            aspect_radio: config.aspect_ratio,
+            aspect_ratio: config.aspect_ratio,
             center,
             pixel_delta_u,
             pixel_delta_v,
-            pixel100_loc,
-            samples_per_pixel: 100,
+            // viewport_upper_left,
+            pixel00_loc,
+            samples_per_pixel: 500,
             max_depth: 50,
             vfov,
             lookfrom,
@@ -141,115 +149,136 @@ impl Camera {
             defocus_angle,
             focus_dist,
             defocus_disk_u,
-            defocus_disk_v
+            defocus_disk_v,
         }
     }
-
-    pub fn render_to_disk<T>(&self, world: T) -> io::Result<()>
-    where
-        T: Hittable,
-    {
-        let pixels: String = (0..self.image_heigth)
-            .cartesian_product(0..self.image_width)  // Para cada pixel (y,x)
-            .progress_count(self.image_heigth as u64 * self.image_width as u64) // Barra de progresso
-            .map(|(y, x)| {
-                let scale_factor: f64 = (self.samples_per_pixel as f64).recip();
-
-                // ANTI-ALIASING: Múltiplas amostras por pixel
-                let multisampled_pixel_color: DVec3 = (0..self.samples_per_pixel)
-                    .into_iter()
-                    .map(|_| {
-                        self.get_ray(x as i32, y as i32)
-                            .color(self.max_depth as i32, &world)
-                    })
-                    .sum::<DVec3>()
-                    * scale_factor;
-
-                // Correção da Gamma, Linear -> sRGB
-                let color = DVec3 {
-                    x: linear_to_gamma(multisampled_pixel_color.x),
-                    y: linear_to_gamma(multisampled_pixel_color.y),
-                    z: linear_to_gamma(multisampled_pixel_color.z),
-                }
-                .clamp(DVec3::splat(0.), DVec3::splat(0.999))
-                    * 256.;
-
-                // 4. Formatar como RGB
-                format!("{} {} {}", color.x, color.y, color.z)
-            })
-            // Agrupa os pixels em linhas (chunks) de acordo com a largura da imagem
-            .chunks(self.image_width as usize)
-            .into_iter()
-            // Junta cada linha de pixels com espaços e depois junta todas as linhas com quebras de linha
-            .map(|chunk| chunk.into_iter().join(" "))
-            .join("\n");
-
-        // Escreve a imagem no formato PPM (Portable Pixmap Format)
-        // P3 = formato ASCII, seguido por largura, altura, valor máximo e dados dos pixels
-        fs::write(
-            "output.ppm",
-            format!(
-                "P3 
-{} {}
-{}
-{pixels}
-",
-                self.image_width, self.image_heigth, self.max_value
-            ),
-        )
-    }
-
     fn get_ray(&self, i: i32, j: i32) -> Ray {
-      // Calcular centro do pixel
-        let pixel_center: DVec3 =
-            self.pixel100_loc + (i as f64 * self.pixel_delta_u) + (j as f64 * self.pixel_delta_v);
+        // Get a randomly sampled camera ray for the pixel at location i,j.
 
-        // Amostragem aleatória dentro do pixel
-        let pixel_sample: DVec3 = pixel_center + self.sample_square();
+        let pixel_center = self.pixel00_loc
+            + (i as f64 * self.pixel_delta_u)
+            + (j as f64 * self.pixel_delta_v);
+        let pixel_sample =
+            pixel_center + self.pixel_sample_square();
 
-        // Profundidade de campo
-        let ray_origin: DVec3 = if self.defocus_angle <= 0. {
-          self.center // Sem DOF = origem fixa
-        } else{
-          self.defocus_disk_sample() // Origem aleatrória no disco
+        let ray_origin = if self.defocus_angle <= 0. {
+            self.center
+        } else {
+            self.defocus_disk_sample()
         };
-        let ray_direction: DVec3 = pixel_sample - ray_origin;
+
+        let ray_direction = pixel_sample - ray_origin;
 
         Ray {
             origin: self.center,
             direction: ray_direction,
         }
     }
-
-    // Amostragem no disco de desfoque
-    fn defocus_disk_sample(&self) -> DVec3{
-      let p = random_in_unit_disk();
-
-      self.center + (p.x * self.defocus_disk_u) + (p.y * self.defocus_disk_v)
+    fn defocus_disk_sample(&self) -> DVec3 {
+        // Returns a random point in the camera defocus disk.
+        let p = random_in_unit_disk();
+        self.center
+            + (p.x * self.defocus_disk_u)
+            + (p.y * self.defocus_disk_v)
     }
 
-    fn sample_square(&self) -> DVec3 {
-        let mut rn = rand::rng();
+    fn pixel_sample_square(&self) -> DVec3 {
+        let mut rng = rand::thread_rng();
+        // Returns a random point in the square surrounding a pixel at the origin.
+        let px = -0.5 + rng.gen::<f64>();
+        let py = -0.5 + rng.gen::<f64>();
+        (px * self.pixel_delta_u)
+            + (py * self.pixel_delta_v)
+    }
+    pub fn render_to_disk<T>(
+        &self,
+        world: T,
+    ) -> io::Result<()>
+    where
+        T: Hittable + std::marker::Sync,
+    {
+        let pixels = (0..self.image_height)
+            .cartesian_product(0..self.image_width)
+            .collect::<Vec<(u32, u32)>>()
+            .into_par_iter()
+            .progress_count(
+                self.image_height as u64
+                    * self.image_width as u64,
+            )
+            .map(|(y, x)| {
+                let scale_factor =
+                    (self.samples_per_pixel as f64).recip();
 
-        let px: f64 = -0.5 + rn.random::<f64>();
-        let py: f64 = -0.5 + rn.random::<f64>();
+                let multisampled_pixel_color = (0..self
+                    .samples_per_pixel)
+                    .into_iter()
+                    .map(|_| {
+                        self.get_ray(x as i32, y as i32)
+                            .color(
+                                self.max_depth as i32,
+                                &world,
+                            )
+                    })
+                    .sum::<DVec3>()
+                    * scale_factor;
 
-        (px * self.pixel_delta_u) + (py * self.pixel_delta_v)
+                // * 256.
+                let color = DVec3 {
+                    x: linear_to_gamma(
+                        multisampled_pixel_color.x,
+                    ),
+                    y: linear_to_gamma(
+                        multisampled_pixel_color.y,
+                    ),
+                    z: linear_to_gamma(
+                        multisampled_pixel_color.z,
+                    ),
+                }
+                .clamp(
+                    DVec3::splat(0.),
+                    DVec3::splat(0.999),
+                ) * 256.;
+                format!(
+                    "{} {} {}",
+                    color.x, color.y, color.z
+                )
+            })
+            .collect::<Vec<String>>()
+            .join("\n");
+        fs::write(
+            "output.ppm",
+            format!(
+                "P3
+{} {}
+{}
+{pixels}
+",
+                self.image_width,
+                self.image_height,
+                self.max_value
+            ),
+        )
     }
 }
 
-fn linear_to_gamma(linear: f64) -> f64 {
-    linear.sqrt()
+fn linear_to_gamma(scalar: f64) -> f64 {
+    scalar.sqrt()
 }
 
+/// unit disk is used to power the base of the focus
+/// cone. We shoot rays from randomized locations on the
+/// unit disk instead of directly from the center to power blur.
 fn random_in_unit_disk() -> DVec3 {
-  let mut rng = rand::rng();
+    let mut rng = rand::thread_rng();
+    loop {
+        let v = DVec3::new(
+            rng.gen_range(-1.0..1.),
+            rng.gen_range(-1.0..1.),
+            0.,
+        );
 
-  loop{
-    let v = DVec3::new(rng.random_range(-1.0..1.), rng.random_range(-1.0..1.), 0.);
-
-    if v.length_squared() < 1. {
-      break v;
+        if v.length_squared() < 1. {
+            break v;
+        }
     }
-  }
 }
